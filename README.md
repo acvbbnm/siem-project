@@ -10,7 +10,8 @@
 |---------|-----|---------|------|
 | VyOS 라우터 | eth0:DHCP / eth1:10.0.0.1 / eth2:10.50.50.1 | out/rf/att | NAT + 라우팅 |
 | pfSense 방화벽 | WAN:10.0.0.254 / LAN:10.0.50.1 / OPT1:10.0.10.1 / OPT2:10.0.100.1 | 전체 | 방화벽 + Snort IPS |
-| att-mint (공격자) | 10.50.50.17 | att-net | 공격 수행 PC |
+| att-mint (공격자) | 10.50.50.17 | att-net | 공격 수행 PC (LinuxMint) |
+| Kali Linux (공격자) | TBD | att-net | 공격 전용 PC (추가 예정) |
 | Bee-box (웹서버) | 10.0.10.50 | dmz-net | 취약 웹서버 (bWAPP) |
 | Ubuntu/Splunk (SIEM) | 10.0.100.50 | inner-net | 로그 수집/분석 |
 | mng-mint (관리자) | 10.0.50.17 | mng-net | 관제/관리 PC |
@@ -37,8 +38,11 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] Snort IPS 설치 (WAN, GPLv2 + ET Open)
 - [x] syslog 원격 전송 설정 (pfSense → Splunk UDP 514)
 - [x] 로그 수집 확인 (index=pfsense, 483 events)
+- [ ] Kali Linux VM 설치 (att-net, ESXi에 추가)
+- [ ] Kali 공격 도구 확인 (nmap, nikto, sqlmap, hydra, metasploit 등 기본 탑재)
+- [ ] Kali → Bee-box 접속 확인
 
-### Phase 1. 공격 수행 (att-mint → Bee-box)
+### Phase 1. 공격 수행 (Kali/att-mint → Bee-box)
 - [ ] att-mint 공격 도구 설치 (nmap, nikto, sqlmap, hydra, dirb)
 - [ ] bWAPP 접속 확인 (att-mint → pfSense NAT → Bee-box)
 - [ ] R-1: TCP 포트 스캔 (nmap -sS)
