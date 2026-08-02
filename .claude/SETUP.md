@@ -6,11 +6,16 @@
 ## A. GitHub Action 활성화 (스마트폰에서 @claude 쓰기)
 
 1. GitHub의 Claude App 설치: https://github.com/apps/claude 에서 `sasumm25-lab/siem-project` 저장소에 설치.
-2. 저장소 → **Settings → Secrets and variables → Actions → New repository secret**
-   - Name: `ANTHROPIC_API_KEY`
-   - Value: (console.anthropic.com 에서 발급한 API 키)
-   - 또는 CLI에서 `claude setup-token` 으로 만든 토큰을 `CLAUDE_CODE_OAUTH_TOKEN` 으로 등록 후 워크플로 입력값을 교체.
-3. 확인: 이슈를 하나 만들고 본문에 `@claude 이 저장소 구조 요약해줘` 작성 → Actions 탭에서 실행 여부 확인.
+2. **토큰 생성(구독 사용, 추가 과금 없음):** Claude Code CLI가 있는 환경에서
+   ```bash
+   claude setup-token
+   ```
+   실행 → 브라우저 로그인 → 출력된 토큰 문자열 복사.
+3. 저장소 → **Settings → Secrets and variables → Actions → New repository secret**
+   - Name: `CLAUDE_CODE_OAUTH_TOKEN`
+   - Value: 복사한 토큰
+   - (console.anthropic.com API 키는 종량제 과금이라 사용하지 않음)
+4. 확인: 이슈를 하나 만들고 본문에 `@claude 이 저장소 구조 요약해줘` 작성 → Actions 탭에서 실행 여부 확인.
 
 ## B. Codespaces (아이패드/브라우저에서 CLI)
 

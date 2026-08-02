@@ -35,6 +35,8 @@ jobs:
       - name: Run Claude Code
         uses: anthropics/claude-code-action@v1
         with:
-          # 아래 시크릿은 GitHub 저장소 Settings > Secrets and variables > Actions 에 등록해야 한다.
-          # ANTHROPIC_API_KEY 또는 CLAUDE_CODE_OAUTH_TOKEN 중 하나.
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Claude Pro/Max 구독으로 인증 (종량제 API 과금 없음).
+          # 토큰 생성: 로컬에서 `claude setup-token` 실행 → 나온 토큰을
+          # GitHub 저장소 Settings > Secrets and variables > Actions 에
+          # CLAUDE_CODE_OAUTH_TOKEN 이름으로 등록.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
