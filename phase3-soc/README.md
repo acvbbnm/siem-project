@@ -93,9 +93,13 @@ index=pfsense "ALERT" | stats count by src | where count > 10
 
 ## 차단 검증 시나리오
 
+> **선행:** 각 검증은 Phase 2의 [대응 규칙 적용/해제 순서](../phase2-detect/README.md#대응-규칙-적용해제-순서-중요)를 따른다.
+> 검증 1 → 순번 ②, 검증 2 → 순번 ④, 검증 3 → 순번 ⑤ 상태에서 수행한다.
+> (특히 검증 2는 2차 "WAN 전체 차단"이 **OFF**인 상태여야 Snort 자동차단을 확인할 수 있다.)
+
 ### 검증 1: IP 차단 확인
 
-**사전 조건:** Phase 2에서 10.50.50.17 차단 규칙 적용 완료
+**사전 조건:** Phase 2 순번 ② — 10.50.50.17 WAN Block 규칙만 적용된 상태
 
 ```bash
 # att-mint에서 실행
@@ -109,7 +113,7 @@ ping 10.0.0.254                    # 기대: 응답 없음
 
 ### 검증 2: Snort 자동차단 확인
 
-**사전 조건:** Phase 2에서 Snort Block Offenders 활성화 + 10.50.50.17 차단 해제
+**사전 조건:** Phase 2 순번 ④ — Snort Block Offenders **ON**, 1차 IP Block **OFF**, 2차 WAN 전체차단 **OFF** (Snort가 직접 차단하는지 보기 위함)
 
 ```bash
 # att-mint에서 SQLi 공격 재시도

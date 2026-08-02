@@ -2,6 +2,9 @@
 
 > 통합보안관제 가상환경에서 공격 수행 → 탐지/분석 → 관제 대응까지 전체 사이클 실습
 
+> 📖 참고자료: [공격유형 사전조사 (개념·표적·방어·탐지·오탐정탐)](공격유형-사전조사.md)
+> 🧭 컨설팅 파트: [취약점 진단·위험 평가·개선 권고](컨설팅-취약점진단.md)
+
 ---
 
 ## 인프라 현황
@@ -28,52 +31,157 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 
 ## 진행 상황
 
+> 각 단계는 세부 작업 단위로 나누어 두었습니다. 세부 작업을 완료하시면 해당 `- [ ]`를 `- [x]`로 바꾸어 주시고, 상세 결과는 각 phase README의 "결과:" 블록에 기록해 주세요.
+
 ### Phase 0. 인프라 구축
 - [x] ESXi 6.7.0 설치 및 데이터스토어 확장
+  - [x] ESXi 6.7.0 설치
+  - [x] 데이터스토어 용량 확장
 - [x] VyOS 라우터 설치 (NAT Masquerade + 정적 라우팅)
+  - [x] VyOS VM 설치 및 3개 인터페이스(out/rf/att) 구성
+  - [x] NAT Masquerade 설정
+  - [x] 정적 라우팅 설정
 - [x] pfSense 방화벽 설치 (4개 인터페이스 + IP 설정)
+  - [x] pfSense VM 설치
+  - [x] WAN/LAN/OPT1/OPT2 4개 인터페이스 할당
+  - [x] 각 인터페이스 IP 설정
 - [x] mng-mint / att-mint 설치
+  - [x] mng-mint(10.0.50.17) 설치 및 mng-net 연결
+  - [x] att-mint(10.50.50.17) 설치 및 att-net 연결
 - [x] Bee-box(bWAPP) 설치 및 DMZ 배치
+  - [x] Bee-box VM 설치 (10.0.10.50)
+  - [x] dmz-net 배치 및 bWAPP 구동 확인
 - [x] Ubuntu + Splunk 8.2.0 설치 (inner-net)
+  - [x] Ubuntu 서버 설치 (10.0.100.50, inner-net)
+  - [x] Splunk 8.2.0 설치 및 웹 접속(:8000) 확인
 - [x] Snort IPS 설치 (WAN, GPLv2 + ET Open)
+  - [x] Snort 패키지 설치 및 WAN 인터페이스 지정
+  - [x] GPLv2 + ET Open 룰셋 등록
 - [x] syslog 원격 전송 설정 (pfSense → Splunk UDP 514)
 - [x] 로그 수집 확인 (index=pfsense, 483 events)
 - [ ] Kali Linux VM 설치 (att-net, ESXi에 추가)
+  - [ ] Kali Linux ISO 다운로드 및 VM 생성
+  - [ ] att-net 네트워크 연결 및 IP 확인
 - [ ] Kali 공격 도구 확인 (nmap, nikto, sqlmap, hydra, metasploit 등 기본 탑재)
+  - [ ] 정찰 도구 확인 (nmap, nikto, dirb)
+  - [ ] 익스플로잇 도구 확인 (sqlmap, hydra, metasploit)
 - [ ] Kali → Bee-box 접속 확인
+  - [ ] pfSense NAT 경유 접속 확인 (`curl -I http://10.0.0.254`)
+  - [ ] bWAPP 페이지 로딩 확인
 
 ### Phase 1. 공격 수행 (Kali/att-mint → Bee-box)
+
+**사전 준비**
 - [ ] att-mint 공격 도구 설치 (nmap, nikto, sqlmap, hydra, dirb)
 - [ ] bWAPP 접속 확인 (att-mint → pfSense NAT → Bee-box)
+  - [ ] `curl -I http://10.0.0.254` 응답 확인
+  - [ ] bee/bug 로그인 및 Security Level → low 설정
+
+**정찰 단계 (Reconnaissance)**
 - [ ] R-1: TCP 포트 스캔 (nmap -sS)
+  - [ ] `nmap -sS -p 1-1000` 실행 및 결과 저장
+  - [ ] 열린 포트(80/tcp) 확인
+  - [ ] Snort sfPortscan 탐지 여부 확인
 - [ ] R-2: 서비스 버전 탐지 (nmap -sV)
+  - [ ] `nmap -sV -O` 실행
+  - [ ] OS / 웹서버·PHP 버전 식별
 - [ ] R-3: 웹 취약점 스캔 (nikto)
+  - [ ] `nikto -h` 실행 및 결과 저장
+  - [ ] Snort "ET SCAN Nikto" 탐지 여부 확인
 - [ ] R-4: 디렉토리 브루트포스 (dirb)
+  - [ ] `dirb` 실행 및 노출 경로 확인
+
+**웹 공격 단계 (Exploitation)**
 - [ ] E-1: SQL Injection (수동, bWAPP)
+  - [ ] 인증 우회 (`' OR 1=1--`) 시도
+  - [ ] UNION 기반 데이터 추출 시도
+  - [ ] Snort "SQL Injection Attempt" 탐지 확인
 - [ ] E-2: SQL Injection (sqlmap 자동화)
+  - [ ] `--dbs` DB 목록 추출
+  - [ ] `--tables` / `--dump`로 users 테이블 덤프
+  - [ ] Snort "sqlmap User Agent" 탐지 확인
 - [ ] E-3: Reflected XSS
+  - [ ] `<script>alert()</script>` 페이로드 반영 확인
+  - [ ] Snort "XSS Attempt" 탐지 확인
 - [ ] E-4: Stored XSS
+  - [ ] 게시글에 쿠키 탈취 스크립트 저장
+  - [ ] 재접속 시 실행 확인
 - [ ] E-5: OS Command Injection
+  - [ ] `; whoami`, `; cat /etc/passwd` 등 명령 실행
+  - [ ] Snort "Command Injection" 탐지 확인
 - [ ] E-6: Directory Traversal
+  - [ ] `../../../etc/passwd` 파일 열람 시도
 - [ ] E-7: Brute Force (hydra)
+  - [ ] 워드리스트 생성
+  - [ ] `hydra` http-post-form 브루트포스 실행
+- [ ] 실제 수행 시각 기록표 작성 (R/E 단계별 실행 시각 → Splunk 타임차트 대조용)
+- [ ] 실습 정리(Cleanup) — Stored XSS 페이로드·산출물·임시 규칙 원복
 
 ### Phase 2. 탐지/분석 + 방화벽 정책 (mng-mint)
+
+**Snort 경보 확인**
 - [ ] Snort Alerts 확인 (pfSense WebGUI)
+  - [ ] 정찰(포트스캔/nikto) 경보 확인
+  - [ ] 웹 공격(SQLi/XSS/Command Injection) 경보 확인
+  - [ ] Alerts 화면 캡처 저장
+
+**Splunk 로그 분석**
 - [ ] Splunk 로그 분석 — 공격자 IP 식별
+  - [ ] `stats count by src`로 공격자 IP 특정
+  - [ ] `src=10.50.50.17` 트래픽 전체 조회
 - [ ] Splunk 로그 분석 — 공격 유형별 분류
+  - [ ] `top 10 signature`로 공격 유형 집계
+  - [ ] 목적지 포트 분포 확인
 - [ ] Splunk 로그 분석 — 시간대별 공격 분포
+  - [ ] `timechart count by signature` 실행
+  - [ ] 시간대별 추이 차트 캡처
+
+**방화벽 정책 대응**
 - [ ] 1차 대응: 공격자 IP 전체 차단 (WAN 규칙)
+  - [ ] WAN에 10.50.50.17 Block 규칙 추가
+  - [ ] 적용 전/후 규칙 캡처
 - [ ] 2차 대응: 서비스 제한 (HTTP만 허용, DMZ 아웃바운드 차단)
+  - [ ] HTTP(TCP/80)만 허용, 나머지 차단 규칙 적용
+  - [ ] DMZ→내부(10.0.100.0/24) 차단
+  - [ ] DMZ 아웃바운드 차단 (리버스쉘 방지)
 - [ ] 3차 대응: Snort 차단 모드 전환 (Block Offenders 활성화)
+  - [ ] Block Offenders + Kill States 체크
+  - [ ] Block Duration(3600초) 설정
+  - [ ] 변경 전/후 설정 캡처
+- [ ] 대응 규칙 적용/해제 순서표 정리 (1~3차 on/off 순서 → Phase 3 검증 선행조건)
 
 ### Phase 3. 관제 운영 (SOC 시뮬레이션)
+
+**모니터링 체계 구축**
 - [ ] Splunk 대시보드 구축 (공격 현황 시각화)
+  - [ ] 실시간 이벤트 수 패널
+  - [ ] 공격자 IP Top 5 / 공격 유형 분포 패널
+  - [ ] 최근 경보 목록 테이블 패널
+  - [ ] 대시보드 캡처 저장
 - [ ] Splunk Alert 설정 (임계치 기반 경보)
+  - [ ] 포트 스캔 탐지 알림 (동일 src 50회 이상)
+  - [ ] 반복 공격 탐지 알림 (ALERT 10회 이상)
+  - [ ] SQLi 탐지 알림
+
+**관제 대응 및 검증**
 - [ ] 관제 대응 프로세스 실행 (경보분류→분석→대응→검증)
+  - [ ] 1단계: 경보 분류(Triage) — 오탐/위험도 판별
+  - [ ] 2단계: 상세 분석 — 페이로드·성공여부·과거이력
+  - [ ] 3단계: 대응 조치 — 위험도별 차단/모니터링
 - [ ] 차단 검증 — IP 차단 후 재공격 시도
+  - [ ] att-mint에서 curl/nmap/ping 재시도
+  - [ ] 차단(Connection refused/timeout) 확인
 - [ ] 차단 검증 — Snort 자동차단 동작 확인
+  - [ ] SQLi 재시도 후 자동 차단 확인
+  - [ ] pfSense Snort > Blocked 목록 확인
+  - [ ] 차단 해제 → 재공격 → 재차단 검증
+
+**보고**
 - [ ] 관제 일지 작성
+  - [ ] INC-xxx 양식으로 탐지 건별 기록 (incident-log.md)
 - [ ] 최종 보고서 작성
+  - [ ] Phase 1~3 결과 취합
+  - [ ] 제출용 보고서 초안 생성 (`/phase-report`)
 
 ---
 
