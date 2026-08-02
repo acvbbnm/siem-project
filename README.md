@@ -111,7 +111,8 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [ ] E-7: Brute Force (hydra)
   - [ ] 워드리스트 생성
   - [ ] `hydra` http-post-form 브루트포스 실행
-- [ ] 공격 타임라인 정리 (15~20분 간격, Splunk 구분용)
+- [ ] 실제 수행 시각 기록표 작성 (R/E 단계별 실행 시각 → Splunk 타임차트 대조용)
+- [ ] 실습 정리(Cleanup) — Stored XSS 페이로드·산출물·임시 규칙 원복
 
 ### Phase 2. 탐지/분석 + 방화벽 정책 (mng-mint)
 
@@ -144,6 +145,7 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
   - [ ] Block Offenders + Kill States 체크
   - [ ] Block Duration(3600초) 설정
   - [ ] 변경 전/후 설정 캡처
+- [ ] 대응 규칙 적용/해제 순서표 정리 (1~3차 on/off 순서 → Phase 3 검증 선행조건)
 
 ### Phase 3. 관제 운영 (SOC 시뮬레이션)
 
