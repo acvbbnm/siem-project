@@ -106,8 +106,34 @@ nikto -h http://10.0.0.254 -o nikto_result.txt
 - 목적: 웹서버 취약점 자동 탐색
 - Snort 예상 탐지: ET SCAN Nikto Web App Scanner
 
-**결과:**
-> (실습 후 결과 기록)
+**결과:** ✅ (2026-08-03 20:01 KST)
+
+nikto 주요 발견 (6544개 점검, 21개 보고):
+- 서버 버전 노출: Apache 2.2.8 / PHP 5.2.4 (전부 outdated)
+- **HTTP TRACE 활성** → XST 취약 (OSVDB-877)
+- **CVE-2002-0082** (mod_ssl 2.2.8 / OpenSSL 0.9.8g 원격 버퍼 오버플로우)
+- **phpMyAdmin 노출** (`/phpmyadmin/`, `changelog.php`) — 관리도구 외부 접근 가능
+- `/icons/` **디렉토리 인덱싱** 활성
+- 기본 파일 노출: `/README`, `/INSTALL.txt`
+- 보안 헤더 부재: X-Frame-Options 없음, phpMyAdmin 쿠키 HttpOnly 없음
+
+**Snort 탐지 성공** — nikto 스캔이 15분간 Splunk에 **868 이벤트** 유발. 대표 시그니처:
+```
+ET WEB_SERVER /etc/passwd Detected in URI    [Attempted Information Leak]
+ET WEB_SERVER /etc/shadow Detected in URI    [Attempted Information Leak]
+(http_inspect) WEBROOT DIRECTORY TRAVERSAL
+ET WEB_SERVER WEB-PHP phpinfo access         [Information Leak]
+ET WEB_SERVER Script tag in URI Possible XSS Attempt   [Web Application Attack]
+ET WEB_SERVER Exploit Suspected PHP Injection Attack (cmd=)
+ET WEB_SPECIFIC_APPS ... Remote File Inclusion Attempt
+```
+- 예상(ET SCAN Nikto)보다 훨씬 풍부 — nikto의 각 프로브가 개별 웹공격 시그니처를 다량 트리거
+- 컨설팅 관점: TRACE·디렉토리 인덱싱·기본파일·헤더부재 → **V-08 보안설정 미흡**, phpMyAdmin·phpinfo 노출 → **V-07 정보노출**
+
+**스크린샷:**
+
+![R-3 nikto 결과](images/R-3-nikto.png)
+![R-3 Snort 웹공격 탐지 (Splunk)](images/R-3-snort-splunk.png)
 
 ### R-4. 디렉토리 브루트포스
 

@@ -87,9 +87,9 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] R-2: 서비스 버전 탐지 (nmap -sV)
   - [x] `nmap -sV -Pn` 실행 (scan_version.txt)
   - [x] 웹서버·PHP 버전 식별 (Apache 2.2.8 / PHP 5.2.4 / OpenSSL 0.9.8g, 전부 EOL)
-- [ ] R-3: 웹 취약점 스캔 (nikto)
-  - [ ] `nikto -h` 실행 및 결과 저장
-  - [ ] Snort "ET SCAN Nikto" 탐지 여부 확인
+- [x] R-3: 웹 취약점 스캔 (nikto)
+  - [x] `nikto -h` 실행 및 결과 저장 (nikto_result.txt, 21개 발견)
+  - [x] Snort 탐지 확인 (868 이벤트 — /etc/passwd·traversal·phpinfo·XSS·PHP injection 등)
 - [ ] R-4: 디렉토리 브루트포스 (dirb)
   - [ ] `dirb` 실행 및 노출 경로 확인
 
