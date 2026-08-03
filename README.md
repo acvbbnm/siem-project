@@ -90,8 +90,8 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] R-3: 웹 취약점 스캔 (nikto)
   - [x] `nikto -h` 실행 및 결과 저장 (nikto_result.txt, 21개 발견)
   - [x] Snort 탐지 확인 (868 이벤트 — /etc/passwd·traversal·phpinfo·XSS·PHP injection 등)
-- [ ] R-4: 디렉토리 브루트포스 (dirb)
-  - [ ] `dirb` 실행 및 노출 경로 확인
+- [x] R-4: 디렉토리 브루트포스 (dirb)
+  - [x] `dirb` 실행 및 노출 경로 확인 (drupal·phpmyadmin·webdav·server-status 등, Snort 다수 탐지)
 
 **웹 공격 단계 (Exploitation)**
 - [ ] E-1: SQL Injection (수동, bWAPP)
