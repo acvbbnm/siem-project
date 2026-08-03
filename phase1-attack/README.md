@@ -143,8 +143,31 @@ dirb http://10.0.0.254 -o dirb_result.txt
 
 - 목적: 숨겨진 경로/파일 탐색
 
-**결과:**
-> (실습 후 결과 기록)
+**결과:** ✅ (2026-08-03 20:05 KST)
+
+dirb 발견 (4612 단어 점검, 20개 발견):
+- **디렉토리/파일 노출**: `/drupal/`(Drupal 앱 — /install·/LICENSE·/modules 등), `/phpmyadmin/`, `/webdav/`, `/server-status`(Apache 상태페이지), `/README`, `/crossdomain.xml`
+- 다수 디렉토리 **LISTABLE(디렉토리 인덱싱 활성)** — /drupal/modules·/profiles·/scripts·/sites·/themes, /phpmyadmin/js·/libraries 등
+- `/drupal/cron` → 403
+
+**Snort 탐지 성공** — dirb의 민감 파일 탐색을 GPL WEB_SERVER 룰이 다수 탐지:
+```
+GPL WEB_SERVER .htpasswd access        [Web Application Attack]
+GPL WEB_SERVER .htaccess access        [Attempted Information Leak]
+GPL WEB_SERVER /~root access
+GPL WEB_SERVER printenv access
+GPL WEB_SERVER global.asa access
+GPL WEB_SERVER iisadmin access
+GPL WEB_SERVER 403 Forbidden
+ET WEB_SERVER WEB-PHP phpinfo access
+```
+- 참고: 사전조사에서 "dirb는 탐지가 약할 수 있다"고 봤으나 **실제로는 민감파일 접근 시그니처로 잘 탐지됨** (예상 대비 좋은 결과 — 문서 갱신 포인트)
+- 컨설팅 관점: 디렉토리 인덱싱·server-status·phpMyAdmin·webdav·Drupal 노출 → **V-08 보안설정 미흡 / V-07 정보노출**
+
+**스크린샷:**
+
+![R-4 dirb 결과](images/R-4-dirb.png)
+![R-4 Snort 탐지 (Splunk)](images/R-4-snort-splunk.png)
 
 ---
 
