@@ -73,10 +73,11 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 ### Phase 1. 공격 수행 (Kali/att-mint → Bee-box)
 
 **사전 준비**
-- [ ] att-mint 공격 도구 설치 (nmap, nikto, sqlmap, hydra, dirb)
-- [ ] bWAPP 접속 확인 (att-mint → pfSense NAT → Bee-box)
-  - [ ] `curl -I http://10.0.0.254` 응답 확인
+- [x] att-mint 공격 도구 설치 (nmap, nikto, sqlmap, hydra, dirb)
+- [x] bWAPP 접속 확인 (att-mint → pfSense NAT → Bee-box)
+  - [x] `curl -I http://10.0.0.254` 응답 확인 (HTTP 200, Apache 2.2.8 / PHP 5.2.4)
   - [ ] bee/bug 로그인 및 Security Level → low 설정
+- [x] 0회차 검증 — 공격자 IP `10.50.50.17` 그대로 로깅 확인, 재부팅 후 로그수집 정상
 
 **정찰 단계 (Reconnaissance)**
 - [ ] R-1: TCP 포트 스캔 (nmap -sS)
