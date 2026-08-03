@@ -74,14 +74,28 @@ Nmap done: 1 IP address (1 host up) scanned in 19.62 seconds
 ### R-2. 서비스 버전 탐지
 
 ```bash
-nmap -sV -O 10.0.0.254 -oN scan_version.txt
+sudo nmap -sV -Pn 10.0.0.254 -oN scan_version.txt
 ```
 
 - 목적: OS, 웹서버 버전 식별
 - 예상 결과: Apache, PHP 버전 등
 
-**결과:**
-> (실습 후 결과 기록)
+**결과:** ✅ (2026-08-03 19:58 KST)
+
+```
+PORT   STATE SERVICE VERSION
+80/tcp open  http    Apache httpd 2.2.8 ((Ubuntu) DAV/2 mod_fastcgi/2.4.6
+                     PHP/5.2.4-2ubuntu5 with Suhosin-Patch mod_ssl/2.2.8 OpenSSL/0.9.8g)
+```
+
+- 식별된 버전 (전부 EOL·구버전 → 정보 노출):
+  - **Apache httpd 2.2.8**, **PHP 5.2.4**, mod_ssl 2.2.8, **OpenSSL 0.9.8g**, mod_fastcgi 2.4.6
+- 컨설팅 관점: 버전 배너를 그대로 노출 → 알려진 CVE 매핑 근거 (**V-07 정보 노출**)
+- 탐지: 단일 열린 포트(80) 대상 버전 프로브라 별도 IPS 경보는 미미 — R-1 스캔과 함께 정찰 트래픽으로 묶임
+
+**스크린샷:**
+
+![R-2 nmap 버전 탐지 결과](images/R-2-nmap-version.png)
 
 ### R-3. 웹 취약점 스캔
 
