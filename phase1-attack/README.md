@@ -66,6 +66,11 @@ Nmap done: 1 IP address (1 host up) scanned in 19.62 seconds
   ```
 - 특이사항: pfSense 방화벽은 통과/차단 SYN을 기본 로깅하지 않아, **포트스캔 탐지는 Snort sfPortscan이 담당**함을 확인 (방화벽 로그가 아닌 IPS 계층 탐지).
 
+**스크린샷:**
+
+![R-1 nmap 스캔 결과](images/R-1-nmap.png)
+![R-1 Snort 포트스캔 탐지 (Splunk)](images/R-1-snort-splunk.png)
+
 ### R-2. 서비스 버전 탐지
 
 ```bash
