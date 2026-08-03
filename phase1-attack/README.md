@@ -38,15 +38,33 @@ ping 10.0.10.50
 ### R-1. TCP 포트 스캔
 
 ```bash
-nmap -sS -p 1-1000 10.0.0.254 -oN scan_tcp.txt
+# pfSense가 WAN ICMP를 차단하므로 -Pn(핑 생략) 필요
+sudo nmap -sS -Pn -p 1-1000 10.0.0.254 -oN scan_tcp.txt
 ```
 
 - 목적: 열린 포트/서비스 파악
 - 예상 결과: 80/tcp open (HTTP)
 - Snort 예상 탐지: sfPortscan
 
-**결과:**
-> (실습 후 결과 기록)
+**결과:** ✅ (2026-08-03 19:50 KST)
+
+```
+Nmap scan report for 10.0.0.254
+Host is up (0.0023s latency).
+Not shown: 999 filtered ports
+PORT   STATE SERVICE
+80/tcp open  http
+Nmap done: 1 IP address (1 host up) scanned in 19.62 seconds
+```
+
+- 열린 포트: **80/tcp (HTTP)** — 나머지 999개는 `filtered`(pfSense가 드롭)
+- 공격자 IP: **10.50.50.17** (NAT로 가려지지 않고 원본 그대로 로깅됨)
+- **Snort 탐지 성공** — Splunk `index=pfsense`에서 확인:
+  ```
+  snort[86242]: [122:5:1] (portscan) TCP Filtered Portscan
+  [Classification: Attempted Information Leak] [Priority: 2] 10.50.50.17 -> 10.0.0.254
+  ```
+- 특이사항: pfSense 방화벽은 통과/차단 SYN을 기본 로깅하지 않아, **포트스캔 탐지는 Snort sfPortscan이 담당**함을 확인 (방화벽 로그가 아닌 IPS 계층 탐지).
 
 ### R-2. 서비스 버전 탐지
 

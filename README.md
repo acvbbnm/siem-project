@@ -80,10 +80,10 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] 0회차 검증 — 공격자 IP `10.50.50.17` 그대로 로깅 확인, 재부팅 후 로그수집 정상
 
 **정찰 단계 (Reconnaissance)**
-- [ ] R-1: TCP 포트 스캔 (nmap -sS)
-  - [ ] `nmap -sS -p 1-1000` 실행 및 결과 저장
-  - [ ] 열린 포트(80/tcp) 확인
-  - [ ] Snort sfPortscan 탐지 여부 확인
+- [x] R-1: TCP 포트 스캔 (nmap -sS)
+  - [x] `nmap -sS -Pn -p 1-1000` 실행 및 결과 저장 (scan_tcp.txt)
+  - [x] 열린 포트(80/tcp) 확인
+  - [x] Snort sfPortscan 탐지 확인 ([122:5:1] TCP Filtered Portscan)
 - [ ] R-2: 서비스 버전 탐지 (nmap -sV)
   - [ ] `nmap -sV -O` 실행
   - [ ] OS / 웹서버·PHP 버전 식별
