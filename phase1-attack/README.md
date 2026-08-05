@@ -385,11 +385,11 @@ hydra -l bee -P wordlist.txt 10.0.0.254 \
 > Splunk 타임차트(`timechart count by signature`)와 1:1 대조하기 위해, 각 공격을 실행한 **실제 시각(KST)** 을 실습 중에 즉시 기록한다.
 > 시각 기준을 att-mint · pfSense · Splunk 서버가 동일하게 맞추도록 실습 전 NTP/시간 동기화를 먼저 확인한다.
 
-⚠️ **타임존 주의사항:**
-- R-1~R-4 실행 당시 Splunk 계정 타임존이 **UTC**(기본값)로 되어 있었음 → Splunk에서 해당 이벤트를 조회하면 **실제 시각보다 -9시간**으로 표시될 수 있음
-- E-1 이후 Splunk 타임존을 **Asia/Seoul(GMT+9)**로 수정함
-- pfSense syslog 원본 타임스탬프는 pfSense 시스템 시각 기준 — pfSense 자체 시각이 KST인지 UTC인지에 따라 Splunk 파싱 결과가 달라짐
-- **Phase 2 분석 전에 확인할 것:** pfSense 시스템 시각(System > General > Timezone)이 `Asia/Seoul`인지 `UTC`인지 확인 → Splunk 검색 시 시간 범위를 그에 맞게 조정
+⚠️ **타임존 주의사항 (스크린샷에서 확인):**
+- pfSense syslog 원본 타임스탬프는 **UTC**로 전송됨 (예: R-1 실행 시 syslog에 `Aug 3 10:50` = KST 19:50)
+- Splunk 계정 타임존을 **Asia/Seoul(GMT+9)**로 설정한 후에는 Splunk 표시 시각이 KST와 정확히 일치 (7:50 PM = 19:50)
+- syslog 원본(UTC)과 Splunk 표시(KST)가 **9시간 차이**로 보이지만, 이는 정상 — 같은 시점을 다른 타임존으로 표현한 것
+- **Phase 2 분석 시:** Splunk 검색은 KST 기준으로 시간 범위를 지정하면 됨 (타임존 설정 완료 상태)
 
 | 단계 | 공격 | 실제 수행 시각 (KST) | 날짜 | 출발지 IP | 대상 | Splunk 확인 | Snort 탐지 |
 |------|------|---------------------|------|-----------|------|-------------|-----------|
