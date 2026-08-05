@@ -305,8 +305,30 @@ ET WEB_SERVER Possible Attempt to Get SQL Server Version (SELECT VERSION)
 
 - Snort 예상 탐지: ET WEB_SERVER XSS Attempt
 
-**결과:**
-> (실습 후 결과 기록)
+**결과:** ✅ (2026-08-04 10:03 KST)
+
+**공격 페이로드 & 결과:**
+- `<script>alert('XSS')</script>` → First name 입력 → alert 팝업에 **"XSS"** 출력 (스크립트 실행 확인)
+- `<script>alert(document.cookie)</script>` → alert 팝업에 **쿠키 노출**:
+  ```
+  PHPSESSID=a28ff074423b11795c7461ff760cdac5; security_level=0
+  ```
+  → 세션 ID 탈취 가능 확인 (세션 하이재킹 위험)
+- URL에 페이로드가 그대로 반영: `xss_get.php?firstname=<script>alert('XSS')</script>&lastname=...`
+
+**Snort 탐지 성공** (Splunk `index=pfsense 10.50.50.17`, **3건**):
+```
+ET WEB_SERVER Script tag in URI Possible Cross Site Scripting Attempt
+[Classification: Web Application Attack] [Priority: 1] [TCP] 10.50.50.17 -> 10.0.0.254:80
+```
+- 3회 시도(alert XSS, alert cookie, img onerror) 모두 `Script tag in URI` 룰로 탐지
+- 컨설팅 관점: 입력값 무검증 반영 → **V-02 XSS (High)**. 개선: 출력 인코딩(htmlspecialchars), CSP 헤더, HttpOnly 쿠키
+
+**스크린샷:**
+
+![E-3 XSS alert 팝업](images/E-3-xss-alert.png)
+![E-3 쿠키 탈취 확인](images/E-3-xss-cookie.png)
+![E-3 Snort XSS 탐지 (Splunk)](images/E-3-snort-splunk.png)
 
 ### E-4. Stored XSS
 
@@ -399,7 +421,7 @@ hydra -l bee -P wordlist.txt 10.0.0.254 \
 | R-4 | 디렉토리 브루트포스 (dirb) | 20:05 | 2026-08-03 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ GPL WEB_SERVER |
 | E-1 | SQL Injection (수동) | 09:29 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 4건 |
 | E-2 | SQL Injection (sqlmap) | 09:37 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 211건 |
-| E-3 | Reflected XSS | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
+| E-3 | Reflected XSS | 10:03 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 3건 |
 | E-4 | Stored XSS | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
 | E-5 | OS Command Injection | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
 | E-6 | Directory Traversal | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |

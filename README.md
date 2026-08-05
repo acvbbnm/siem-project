@@ -102,9 +102,9 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
   - [x] `--dbs` DB 목록 추출 (bWAPP, drupageddon, information_schema, mysql)
   - [x] `--dump`로 users 테이블 덤프 + 해시 크랙
   - [x] Snort 탐지 확인 (211건 — ET SCAN Sqlmap 등)
-- [ ] E-3: Reflected XSS
-  - [ ] `<script>alert()</script>` 페이로드 반영 확인
-  - [ ] Snort "XSS Attempt" 탐지 확인
+- [x] E-3: Reflected XSS
+  - [x] `<script>alert()</script>` 페이로드 반영 확인
+  - [x] Snort "XSS Attempt" 탐지 확인 (3건, ET WEB_SERVER Script tag in URI)
 - [ ] E-4: Stored XSS
   - [ ] 게시글에 쿠키 탈취 스크립트 저장
   - [ ] 재접속 시 실행 확인
