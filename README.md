@@ -76,7 +76,7 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] att-mint 공격 도구 설치 (nmap, nikto, sqlmap, hydra, dirb)
 - [x] bWAPP 접속 확인 (att-mint → pfSense NAT → Bee-box)
   - [x] `curl -I http://10.0.0.254` 응답 확인 (HTTP 200, Apache 2.2.8 / PHP 5.2.4)
-  - [ ] bee/bug 로그인 및 Security Level → low 설정
+  - [x] bee/bug 로그인 및 Security Level → low 설정 (att-mint 브라우저 → 10.0.0.254)
 - [x] 0회차 검증 — 공격자 IP `10.50.50.17` 그대로 로깅 확인, 재부팅 후 로그수집 정상
 
 **정찰 단계 (Reconnaissance)**
@@ -94,10 +94,10 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
   - [x] `dirb` 실행 및 노출 경로 확인 (drupal·phpmyadmin·webdav·server-status 등, Snort 다수 탐지)
 
 **웹 공격 단계 (Exploitation)**
-- [ ] E-1: SQL Injection (수동, bWAPP)
-  - [ ] 인증 우회 (`' OR 1=1--`) 시도
-  - [ ] UNION 기반 데이터 추출 시도
-  - [ ] Snort "SQL Injection Attempt" 탐지 확인
+- [x] E-1: SQL Injection (수동, bWAPP)
+  - [x] 인증 우회 (`' OR '1'='1`) → 전체 목록 반환
+  - [x] UNION 데이터 추출 → users 계정·비밀번호 해시 유출
+  - [x] Snort SQL Injection 탐지 확인 (SELECT USER + SQL Errors in Response)
 - [ ] E-2: SQL Injection (sqlmap 자동화)
   - [ ] `--dbs` DB 목록 추출
   - [ ] `--tables` / `--dump`로 users 테이블 덤프
