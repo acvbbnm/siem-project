@@ -377,6 +377,7 @@ ET WEB_SERVER Script tag in URI Possible Cross Site Scripting Attempt
 ```
 
 - Snort 예상 탐지: ET WEB_SERVER Command Injection
+- **사전 준비 완료 (2026-08-05):** Bee-box DNS 미설정으로 nslookup 무한 대기 → `echo "nameserver 10.0.10.1" | sudo tee /etc/resolv.conf` 로 해결
 
 **결과:**
 > (실습 후 결과 기록)
