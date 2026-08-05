@@ -105,9 +105,9 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] E-3: Reflected XSS
   - [x] `<script>alert()</script>` 페이로드 반영 확인
   - [x] Snort "XSS Attempt" 탐지 확인 (3건, ET WEB_SERVER Script tag in URI)
-- [ ] E-4: Stored XSS
-  - [ ] 게시글에 쿠키 탈취 스크립트 저장
-  - [ ] 재접속 시 실행 확인
+- [x] E-4: Stored XSS
+  - [x] 게시글에 쿠키 탈취 스크립트 저장 → 재접속 시 재실행 확인
+  - [x] Snort **미탐지** 확인 (POST body → 응답 body 경로는 URI 검사 룰 우회, IPS 한계점)
 - [ ] E-5: OS Command Injection
   - [ ] `; whoami`, `; cat /etc/passwd` 등 명령 실행
   - [ ] Snort "Command Injection" 탐지 확인

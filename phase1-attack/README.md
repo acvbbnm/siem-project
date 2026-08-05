@@ -340,8 +340,29 @@ ET WEB_SERVER Script tag in URI Possible Cross Site Scripting Attempt
 
 - 게시글에 저장되어 다른 사용자 접속 시 실행됨
 
-**결과:**
-> (실습 후 결과 기록)
+**결과:** ✅ (2026-08-04 10:08 KST)
+
+**공격 페이로드 & 결과:**
+- Blog Entry에 `<script>alert(document.cookie)</script>` 입력 후 Submit
+- 저장 즉시 alert 팝업에 **쿠키 노출**: `PHPSESSID=a28ff074423b11795c7461ff760cdac5; security_level=0`
+- 페이지 새로고침(F5/Resend) → **다시 alert 실행** = DB에 저장된 스크립트가 매번 실행됨
+- 다른 사용자가 Blog 페이지를 열 때마다 쿠키 탈취 가능 (Reflected보다 피해 범위 훨씬 넓음)
+- Blog 테이블에 기록: Owner=bee, Date=2026-08-04 03:09:07 (서버 UTC 시각)
+
+**Snort 탐지: ❌ 미탐지 (중요 발견)**
+- Splunk `index=pfsense 10.50.50.17` 검색 결과, E-4 관련 새 이벤트 **0건**
+- **미탐지 원인**: Stored XSS는 POST body로 페이로드를 전송하고, 이후 응답 body에 포함되어 실행됨. Snort의 `Script tag in URI` 룰은 **요청 URI만 검사**하므로 POST body/응답 body의 스크립트를 탐지하지 못함
+- **Reflected vs Stored 탐지 차이**:
+  - Reflected(E-3): 페이로드가 GET 파라미터(URI)에 노출 → Snort 탐지 ✅
+  - Stored(E-4): 페이로드가 POST body → DB → 응답 body로 이동 → Snort 미탐지 ❌
+- **관제 시사점**: 네트워크 IPS만으로는 Stored XSS를 탐지할 수 없음 → WAF(Web Application Firewall) 또는 애플리케이션 레벨 방어(출력 인코딩, CSP) 필요
+- 컨설팅 관점: **V-02 XSS (Critical)** — Stored XSS는 Reflected보다 위험도 상향. IPS 탐지 우회 가능 + 다수 피해자 발생
+
+**스크린샷:**
+
+![E-4 Stored XSS 쿠키 탈취](images/E-4-xss-stored.png)
+![E-4 재접속 시 재실행 확인](images/E-4-xss-resend.png)
+![E-4 Snort 미탐지 확인 (Splunk)](images/E-4-snort-splunk.png)
 
 ### E-5. OS Command Injection
 
@@ -422,7 +443,7 @@ hydra -l bee -P wordlist.txt 10.0.0.254 \
 | E-1 | SQL Injection (수동) | 09:29 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 4건 |
 | E-2 | SQL Injection (sqlmap) | 09:37 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 211건 |
 | E-3 | Reflected XSS | 10:03 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 3건 |
-| E-4 | Stored XSS | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
+| E-4 | Stored XSS | 10:08 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ✘ 미탐지 |
 | E-5 | OS Command Injection | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
 | E-6 | Directory Traversal | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
 | E-7 | Brute Force (hydra) | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
