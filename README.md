@@ -98,10 +98,10 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
   - [x] 인증 우회 (`' OR '1'='1`) → 전체 목록 반환
   - [x] UNION 데이터 추출 → users 계정·비밀번호 해시 유출
   - [x] Snort SQL Injection 탐지 확인 (SELECT USER + SQL Errors in Response)
-- [ ] E-2: SQL Injection (sqlmap 자동화)
-  - [ ] `--dbs` DB 목록 추출
-  - [ ] `--tables` / `--dump`로 users 테이블 덤프
-  - [ ] Snort "sqlmap User Agent" 탐지 확인
+- [x] E-2: SQL Injection (sqlmap 자동화)
+  - [x] `--dbs` DB 목록 추출 (bWAPP, drupageddon, information_schema, mysql)
+  - [x] `--dump`로 users 테이블 덤프 + 해시 크랙
+  - [x] Snort 탐지 확인 (211건 — ET SCAN Sqlmap 등)
 - [ ] E-3: Reflected XSS
   - [ ] `<script>alert()</script>` 페이로드 반영 확인
   - [ ] Snort "XSS Attempt" 탐지 확인
