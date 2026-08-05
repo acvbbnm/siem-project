@@ -262,8 +262,36 @@ sqlmap -u "..." --cookie="..." -D bWAPP -T users --dump
 
 - Snort 예상 탐지: ET WEB_SERVER sqlmap User Agent
 
-**결과:**
-> (실습 후 결과 기록)
+**결과:** ✅ (2026-08-04 09:37 KST)
+
+**sqlmap 자동 공격 결과:**
+- 주입점: `title` 파라미터 — boolean/error/time-based/UNION(7컬럼) 모두 injectable, DBMS = MySQL (133회 요청으로 자동 탐지)
+- DB 목록: **bWAPP, drupageddon, information_schema, mysql** (4개)
+- users 테이블 덤프 + **해시 자동 크랙**:
+  ```
+  id  login   password(SHA1)                              admin  cracked
+  1   A.I.M.  6885858486f31043e5839c735d99457f045affd0    1      bug
+  2   bee     6885858486f31043e5839c735d99457f045affd0    1      bug
+  3   foo     0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33    0      foo
+  ```
+
+**Snort 탐지 성공** (Splunk `index=pfsense 10.50.50.17`, 15분간 **211 이벤트**):
+```
+ET SCAN Sqlmap SQL Injection Scan                            [Attempted Information Leak]  ← sqlmap 도구 식별
+ET WEB_SERVER SELECT USER SQL Injection Attempt in URI       [Web Application Attack, P1]
+ET WEB_SERVER Possible SQL Injection SELECT CAST in HTTP URI [Administrator Privilege Gain]
+ET WEB_SERVER Possible MySQL SQLi Attempt Information Schema Access
+ET WEB_SERVER ATTACKER SQLi - SELECT and Schema Columns
+ET WEB_SERVER Possible Attempt to Get SQL Server Version (SELECT VERSION)
+```
+- 수동(E-1) 4건 ↔ 자동(E-2) **211건** — 자동화 도구는 트래픽·시그니처가 폭증해 **탐지가 매우 쉬움**
+- 관제 관점: `ET SCAN Sqlmap` = 자동화 공격도구 사용의 명확한 지표 → 즉시 차단 근거
+- 컨설팅 관점: E-1과 동일 **V-01 SQL Injection (Critical)**
+
+**스크린샷:**
+
+![E-2 sqlmap DB 덤프](images/E-2-sqlmap.png)
+![E-2 Snort sqlmap 탐지 (Splunk)](images/E-2-snort-splunk.png)
 
 ### E-3. Reflected XSS
 
