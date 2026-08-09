@@ -1,127 +1,280 @@
 # Phase 2. 탐지/분석 + 방화벽 정책
 
 > mng-mint(10.0.50.17)에서 Splunk + pfSense를 통해 분석 및 대응
+> Phase 1의 공격이 **모두 완료된 후** 진행한다.
 
 ---
 
-## Snort 경보 확인
+## 사전 준비
 
-pfSense WebGUI > Services > Snort > Alerts
+### Splunk 필드 추출 설정 (중요)
 
-| 공격 | 예상 Snort 탐지 시그니처 | 심각도 |
-|------|------------------------|--------|
-| 포트 스캔 (R-1) | sfPortscan: Portscan Detected | 중 |
-| nikto 스캔 (R-3) | ET SCAN Nikto Web App Scanner | 중 |
-| SQL Injection (E-1) | ET WEB_SERVER SQL Injection Attempt | 상 |
-| sqlmap (E-2) | ET WEB_SERVER sqlmap User Agent | 상 |
-| XSS (E-3) | ET WEB_SERVER XSS Attempt | 중 |
-| Command Injection (E-5) | ET WEB_SERVER Command Injection | 상 |
-| Brute Force (E-7) | 다수 로그인 실패 로그 (반복 접근) | 중 |
+> 현재 Splunk의 `index=pfsense` 로그는 CSV 원본(raw) 상태로, `src`, `dest_port`, `signature` 같은 필드가 자동 추출되지 않는다.
+> Phase 2 분석 쿼리가 제대로 동작하려면 **아래 중 하나**를 먼저 수행해야 한다.
 
-**Snort Alerts 캡처:**
-> (실습 후 캡처 삽입)
+**방법 A: Splunk Add-on for pfSense (TA-pfsense) 설치 (권장)**
+1. mng-mint에서 Splunk 접속 (`http://10.0.100.50:8000`)
+2. Apps > Find More Apps > "pfsense" 검색 > `TA-pfsense` 설치
+   - Splunk 계정 필요 (무료 계정으로 가능)
+   - 또는 [Splunkbase](https://splunkbase.splunk.com/app/1527/)에서 `.tgz` 다운 → Splunk에 업로드
+3. 설치 후 Splunk 재시작
+4. 확인: `index=pfsense | table src dest dest_port signature` → 필드가 채워지면 성공
 
----
+**방법 B: 수동 필드 추출 (TA 설치가 안 될 경우)**
+1. Settings > Fields > Field Extractions > New Field Extraction
+2. sourcetype = `syslog`, index = `pfsense`
+3. 대표 이벤트에서 `src`, `dest`, `dest_port`, `signature` 필드를 드래그하여 추출 규칙 생성
+4. 또는 정규식으로 직접 추출:
+   ```
+   # Snort alert에서 src IP 추출
+   \{TCP\}\s+(?P<src>\d+\.\d+\.\d+\.\d+):\d+\s+->\s+(?P<dest>\d+\.\d+\.\d+\.\d+):(?P<dest_port>\d+)
+   ```
 
-## Splunk 로그 분석
+**방법 C: 쿼리 내 인라인 추출 (임시)**
+```spl
+index=pfsense snort
+| rex "(?P<src>\d+\.\d+\.\d+\.\d+):\d+\s+->\s+(?P<dest>\d+\.\d+\.\d+\.\d+):(?P<dest_port>\d+)"
+| rex "snort\[\d+\]:\s+\[\S+\]\s+(?P<signature>[^\[]+)\s+\["
+| table _time src dest dest_port signature
+```
+> 방법 C는 매 쿼리마다 `rex`를 넣어야 하므로 번거롭다. 가능하면 A 또는 B를 먼저 한다.
 
-접속: mng-mint Firefox → http://10.0.100.50:8000
-
-### 기본 검색 쿼리
-
-| 분석 목적 | 쿼리 | 기대 결과 |
-|----------|------|----------|
-| 전체 로그 | `index=pfsense` | pfSense/Snort 전체 이벤트 |
-| Snort 경보만 | `index=pfsense "snort" OR "ALERT"` | IPS 탐지 이벤트 |
-| 공격자 IP 필터 | `index=pfsense src=10.50.50.17` | att-mint 발 트래픽 전체 |
-| SQL Injection | `index=pfsense "SQL" OR "sql injection"` | SQLi 관련 경보 |
-| 포트 스캔 | `index=pfsense "portscan" OR "scan"` | 스캔 탐지 이벤트 |
-| XSS | `index=pfsense "XSS" OR "script"` | XSS 관련 경보 |
-| Command Injection | `index=pfsense "command injection" OR "cmd"` | 명령 삽입 경보 |
-
-### 분석용 쿼리
+### 필드 추출 확인 테스트
 
 ```spl
-# 시간대별 공격 분포
-index=pfsense src=10.50.50.17 | timechart count by signature
-
-# 공격 유형 Top 10
-index=pfsense src=10.50.50.17 | top 10 signature
-
-# 공격자별 이벤트 수
-index=pfsense | stats count by src | sort -count
-
-# 목적지 포트 분포
-index=pfsense src=10.50.50.17 | stats count by dest_port | sort -count
-
-# 공격 성공/실패 판별 (HTTP 상태코드)
-index=pfsense src=10.50.50.17 | stats count by status
+index=pfsense src=10.50.50.17 | stats count by signature | sort -count | head 10
 ```
+- 결과가 나오면 → 필드 추출 정상, Phase 2 진행 가능
+- "No results" → 필드 추출 설정 필요
 
-### 분석 결과
+### 타임존 확인
 
-**전체 이벤트 수:**
-> (실습 후 기록)
-
-**공격 유형별 분포:**
-> (실습 후 기록)
-
-**시간대별 추이 차트:**
-> (실습 후 캡처 삽입)
+- Splunk 계정 타임존: **Asia/Seoul (GMT+9)** 설정 완료 확인
+- pfSense syslog 원본: **UTC**로 전송됨 (Phase 1에서 확인)
+- Splunk이 자동 변환하므로 검색 시 KST 기준으로 시간 범위 지정하면 됨
 
 ---
 
-## 방화벽 정책 수립 및 적용
+## Step 1. Snort 경보 확인 (pfSense WebGUI)
+
+> 먼저 pfSense의 Snort Alerts 화면에서 전체 경보를 한눈에 확인한다.
+> 이후 Splunk에서 동일 이벤트를 쿼리로 분석하는 흐름.
+
+### 확인 절차
+
+1. mng-mint 브라우저에서 pfSense 접속: `https://10.0.50.1`
+2. Services > Snort > Alerts
+3. Interface: **WAN** 선택
+
+### 확인해야 할 경보 카테고리
+
+| 구분 | 공격 단계 | 예상 Snort 시그니처 | 심각도 | Phase 1 결과 |
+|------|----------|-------------------|--------|-------------|
+| 정찰 | R-1 포트스캔 | `[122:5:1] sfPortscan: TCP Filtered Portscan` | P2 | ✅ 탐지 |
+| 정찰 | R-3 nikto | `ET WEB_SERVER /etc/passwd`, `WEBROOT DIRECTORY TRAVERSAL` 등 | P1~2 | ✅ 868건 |
+| 정찰 | R-4 dirb | `GPL WEB_SERVER .htpasswd access`, `.htaccess access` 등 | P1~2 | ✅ 탐지 |
+| 웹공격 | E-1 SQLi (수동) | `ET WEB_SERVER SELECT USER SQL Injection Attempt in URI` | P1 | ✅ 4건 |
+| 웹공격 | E-2 SQLi (sqlmap) | `ET SCAN Sqlmap SQL Injection Scan` | P1 | ✅ 211건 |
+| 웹공격 | E-3 Reflected XSS | `ET WEB_SERVER Script tag in URI Possible Cross Site Scripting Attempt` | P1 | ✅ 3건 |
+| 웹공격 | E-4 Stored XSS | — | — | ❌ **미탐지** (IPS 한계) |
+| 웹공격 | E-5 Command Injection | `ET WEB_SERVER cmd=` 또는 `/etc/passwd` | P1 | 실습 대기 |
+| 인증 | E-7 Brute Force | `ET SCAN Hydra User-Agent Detected` | P2 | 실습 대기 |
+
+### 확인 포인트 및 캡처
+
+- [ ] Alerts 전체 목록 캡처 → `images/snort-alerts-overview.png`
+- [ ] 정찰 관련 경보 필터 → `images/snort-alerts-recon.png`
+- [ ] 웹 공격 관련 경보 필터 → `images/snort-alerts-exploit.png`
+- [ ] 총 Alert 건수 기록: ____건
+- [ ] 가장 많이 발생한 시그니처 Top 5 기록
+
+---
+
+## Step 2. Splunk 로그 분석
+
+접속: mng-mint Firefox → `http://10.0.100.50:8000` → Search & Reporting
+
+### 2-1. 공격자 IP 식별
+
+> 관제 실무에서는 "누가 공격했는지" 먼저 식별한다.
+
+```spl
+# 전체 이벤트에서 출발지 IP별 이벤트 수
+index=pfsense | stats count by src | sort -count | head 10
+```
+
+**확인 포인트:**
+- [ ] `10.50.50.17`이 최상위에 위치 = 공격자 IP 특정
+- [ ] 다른 IP(10.0.100.1 등)는 pfSense 내부 트래픽 — 정상
+- [ ] 캡처 → `images/splunk-src-stats.png`
+
+### 2-2. 공격자 트래픽 전체 조회
+
+```spl
+# 공격자 IP 전체 트래픽 — 시간순
+index=pfsense 10.50.50.17 | sort _time | table _time signature src dest
+```
+
+### 2-3. 공격 유형별 분류
+
+```spl
+# 시그니처별 탐지 건수 Top 10
+index=pfsense 10.50.50.17 snort | top 10 signature
+
+# 키워드 기반 분류 (필드 추출이 안 될 경우)
+index=pfsense 10.50.50.17 "SQL"       | stats count as SQLi
+index=pfsense 10.50.50.17 "portscan"  | stats count as PortScan
+index=pfsense 10.50.50.17 "XSS" OR "script" | stats count as XSS
+index=pfsense 10.50.50.17 "passwd"    | stats count as Traversal
+```
+
+**확인 포인트:**
+- [ ] 공격 유형별 건수 정리표 작성
+- [ ] 캡처: `top 10 signature` 결과 → `images/splunk-top-signature.png`
+
+### 2-4. 목적지 포트 분포
+
+```spl
+index=pfsense 10.50.50.17 | stats count by dest_port | sort -count
+```
+
+- 예상: `80`(HTTP)이 압도적 — 모든 공격이 웹 대상이므로
+- 다른 포트가 나오면 비정상 접근 시도 가능성
+
+### 2-5. 시간대별 공격 분포 (핵심 시각화)
+
+```spl
+# 시그니처별 시간대 분포
+index=pfsense 10.50.50.17 snort | timechart span=5m count by signature
+
+# 전체 이벤트 시간대 분포
+index=pfsense 10.50.50.17 | timechart span=1m count
+```
+
+**확인 포인트:**
+- [ ] Phase 1의 "실제 수행 시각 기록표"와 대조하여 각 피크가 어떤 공격인지 매핑
+  - 8/3 19:50~20:05 → R-1~R-4 정찰 (대량 스캔 트래픽)
+  - 8/4 09:29~09:37 → E-1~E-2 SQLi
+  - 8/4 10:03~10:04 → E-3 XSS
+  - 8/4 10:08 → E-4 Stored XSS (이벤트 없을 수 있음)
+- [ ] 시간대별 추이 차트 캡처 → `images/splunk-timechart.png`
+- [ ] Visualization 탭에서 Line Chart로 전환하여 캡처
+
+### 2-6. 공격 성공/실패 판별 (심화)
+
+```spl
+# HTTP 응답 코드 분포 (Snort가 HTTP inspect로 잡은 경우)
+index=pfsense 10.50.50.17 | stats count by status
+
+# SQL 에러 노출 = 공격 성공 지표
+index=pfsense "SQL Errors in HTTP 200 Response" | stats count
+```
+
+- `HTTP 200` + SQL 에러 = 공격 성공 (서버가 에러를 클라이언트에 노출)
+- `HTTP 403/404` = 차단/실패
+
+### 분석 결과 종합
+
+> Phase 1 완료 후 아래 표를 채운다.
+
+| 분석 항목 | 결과 |
+|----------|------|
+| 총 이벤트 수 | (기록) |
+| 공격자 IP | 10.50.50.17 (확인) |
+| 공격 유형 수 | (기록) |
+| 가장 많은 시그니처 | (기록) |
+| Snort 미탐지 공격 | E-4 Stored XSS (확인), E-5/E-7은 실습 후 확인 |
+| 정찰 이벤트 비율 | R-1~R-4: __% |
+| 웹공격 이벤트 비율 | E-1~E-7: __% |
+
+---
+
+## Step 3. 방화벽 정책 수립 및 적용
 
 pfSense WebGUI > Firewall > Rules
 
+> 분석 결과를 바탕으로 **단계적 방어 정책**을 적용한다.
+> 각 단계마다 적용 전/후 규칙을 캡처하여 변경 이력을 남긴다.
+
 ### 1차 대응 — 공격자 IP 즉시 차단
 
-| 순서 | 인터페이스 | Action | Source | Destination | Protocol | 근거 |
-|------|-----------|--------|--------|-------------|----------|------|
-| 1 | WAN | **Block** | 10.50.50.17 | Any | Any | 명확한 공격자 IP |
+> **근거:** Splunk 분석에서 `10.50.50.17`이 모든 공격의 출발지로 확인됨
 
-**적용 전 규칙 캡처:**
-> (실습 후 캡처)
+**pfSense 설정 절차:**
+1. Firewall > Rules > **WAN** 탭
+2. Add (▲ 맨 위) — 새 규칙을 기존 규칙 위에 추가
+3. 설정:
 
-**적용 후 규칙 캡처:**
-> (실습 후 캡처)
+| 항목 | 값 |
+|------|-----|
+| Action | **Block** |
+| Interface | WAN |
+| Protocol | Any |
+| Source | Single host or alias: `10.50.50.17` |
+| Destination | Any |
+| Description | `[Phase2-1차] 공격자 IP 차단 — INC-001` |
 
-### 2차 대응 — 서비스 제한
+4. Save > Apply Changes
 
-| 순서 | 인터페이스 | Action | Source | Destination | Protocol/Port | 근거 |
-|------|-----------|--------|--------|-------------|--------------|------|
-| 1 | WAN | Pass | Any | 10.0.10.50 | TCP/80 | HTTP만 허용 |
-| 2 | WAN | Block | Any | Any | Any | 나머지 전체 차단 |
-| 3 | DMZNET | Block | 10.0.10.50 | 10.0.100.0/24 | Any | DMZ→내부 차단 |
-| 4 | DMZNET | Block | 10.0.10.50 | Any | Any | DMZ 아웃바운드 차단 (리버스쉘 방지) |
+**캡처:**
+- [ ] 적용 전 WAN 규칙 목록 → `images/fw-1st-before.png`
+- [ ] 적용 후 WAN 규칙 목록 → `images/fw-1st-after.png`
+
+### 2차 대응 — 서비스 제한 (HTTP만 허용 + DMZ 아웃바운드 차단)
+
+> **근거:** 공격자 IP만 차단하면 다른 IP에서 같은 공격 가능 → 서비스 레벨에서 제한
+
+**WAN 규칙 (Firewall > Rules > WAN):**
+
+| 순서 | Action | Source | Destination | Protocol/Port | Description |
+|------|--------|--------|-------------|--------------|-------------|
+| 1 | **Pass** | Any | 10.0.10.50 | TCP/80 | HTTP만 허용 |
+| 2 | **Block** | Any | Any | Any | 나머지 전체 차단 |
+
+**DMZNET 규칙 (Firewall > Rules > OPT1):**
+
+| 순서 | Action | Source | Destination | Protocol | Description |
+|------|--------|--------|-------------|----------|-------------|
+| 1 | **Block** | 10.0.10.0/24 | 10.0.100.0/24 | Any | DMZ→내부(Splunk) 차단 |
+| 2 | **Block** | 10.0.10.0/24 | Any | Any | DMZ 아웃바운드 전체 차단 (리버스쉘 방지) |
+
+**캡처:**
+- [ ] WAN 규칙 → `images/fw-2nd-wan.png`
+- [ ] DMZNET 규칙 → `images/fw-2nd-dmz.png`
 
 ### 3차 대응 — Snort IPS 차단 모드 전환
 
-pfSense > Services > Snort > Interfaces > WAN > Edit
+> **근거:** 수동 IP 차단은 사후 대응 → Snort 자동차단으로 **실시간 대응** 전환
+
+**pfSense 설정 절차:**
+1. Services > Snort > Interfaces > WAN > Edit (연필 아이콘)
+2. Alert Settings 섹션에서:
 
 | 설정 | 변경 전 | 변경 후 | 효과 |
 |------|--------|--------|------|
-| Block Offenders | 미체크 | **체크** | 탐지 시 자동 IP 차단 |
-| IPS Policy | — | Connectivity | 탐지 룰 정책 |
-| Kill States | 미체크 | **체크** | 차단 시 기존 연결도 종료 |
-| Block Duration | — | **3600초** | 1시간 차단 유지 |
+| Block Offenders | ☐ | **☑** | 탐지 시 자동 IP 차단 |
+| Kill States | ☐ | **☑** | 차단 시 기존 연결도 종료 |
+| Which IP to Block | — | **SRC** | 공격 출발지 IP 차단 |
+| Block Duration | — | **3600** (초) | 1시간 차단 유지 |
 
-**변경 전 Snort 설정 캡처:**
-> (실습 후 캡처)
+3. Save > Snort 서비스 재시작 (Interfaces 목록에서 ▶ 재시작)
 
-**변경 후 Snort 설정 캡처:**
-> (실습 후 캡처)
+**캡처:**
+- [ ] 변경 전 Snort 설정 → `images/snort-block-before.png`
+- [ ] 변경 후 Snort 설정 → `images/snort-block-after.png`
 
 ---
 
 ## 정책 적용 결과 요약
 
-| 대응 단계 | 적용 내용 | 효과 |
-|----------|----------|------|
-| 1차 | 공격자 IP 차단 | 해당 IP에서의 모든 접근 차단 |
-| 2차 | HTTP만 허용 + DMZ 아웃바운드 차단 | 불필요 포트 접근 방지 + 리버스쉘 차단 |
-| 3차 | Snort 자동차단 활성화 | 새로운 공격자도 자동 탐지/차단 |
+| 대응 단계 | 적용 내용 | 방어 범위 | 한계 |
+|----------|----------|----------|------|
+| 1차 | 공격자 IP 차단 | 특정 IP 완전 차단 | 다른 IP에서는 동일 공격 가능 |
+| 2차 | HTTP만 허용 + DMZ 격리 | 불필요 포트·리버스쉘 차단 | 웹 공격(SQLi/XSS)은 HTTP 안에서 발생 |
+| 3차 | Snort 자동차단 | 시그니처 기반 실시간 차단 | 미탐지 공격(Stored XSS 등)에는 무력 |
+
+> **결론:** 1~3차 대응을 **모두 조합**해야 효과적. 단일 대응은 반드시 빈틈이 있다.
+> → 보고서에서 "다층 방어(Defense in Depth)" 개념과 연결한다.
 
 ---
 
