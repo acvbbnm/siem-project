@@ -918,26 +918,57 @@ hydra -l bee -P wordlist.txt 10.0.0.254 \
 - Step 2에서 실제 실패 응답을 확인한 후 정확한 문자열을 사용할 것
 - bWAPP 버전에 따라 `Invalid credentials`, `invalid`, `not correct` 등 다를 수 있음
 
-**확인 포인트:**
-- [ ] hydra가 `bee`/`bug` 조합을 찾아냄 = 브루트포스 성공
-- [ ] E-2에서 크랙한 비밀번호(bug)와 일치 확인
-- [ ] 캡처: hydra 실행 결과 → `images/E-7-hydra.png`
+**결과:** ✅ (2026-08-10 18:15 KST)
 
-**Snort 탐지 확인:**
-- Splunk: `index=pfsense 10.50.50.17` (Last 15 minutes)
-- 예상 시그니처:
-  ```
-  ET SCAN Hydra User-Agent Detected          ← hydra 도구 식별
-  ET WEB_SERVER Brute Force Login Attempt     ← 반복 로그인 시도
-  ```
-- sqlmap(E-2)처럼 자동화 도구는 User-Agent로 식별되므로 탐지 가능성 높음
-- 단, 적은 횟수(10회)로는 rate-based 룰에 안 걸릴 수 있음
-- 캡처: Splunk 결과 → `images/E-7-snort-splunk.png`
+**공격 방법 & 결과:**
+- hydra 자동화 시도 → pfSense NAT가 모든 응답을 301 리다이렉트로 반환하여 hydra가 성공/실패를 구분하지 못함 (NAT 구조적 한계)
+- **수동 브루트포스로 전환** — att-mint 브라우저에서 bWAPP 로그인 페이지에 직접 반복 시도:
+  - `bee`/`admin` → 실패
+  - `bee`/`password` → 실패
+  - `bee`/`123456` → 실패
+  - `bee`/`test` → 실패
+  - `bee`/`root` → 실패
+  - ... (10회 이상 틀린 비밀번호 시도)
+  - `bee`/`bug` → **성공** (E-2에서 크랙한 비밀번호와 일치)
+- bWAPP에는 **계정 잠금·시도 제한·CAPTCHA가 전혀 없음** → 무제한 시도 가능 (Security Level: low)
+
+**Snort 탐지: ❌ 미탐지 (중요 발견 — E-4에 이은 두 번째 IPS 한계)**
+
+Splunk `index=pfsense 10.50.50.17` 검색 결과, 브루트포스 관련 새 이벤트 **0건**
+
+**미탐지 원인 — 시그니처 기반 IPS의 구조적 한계:**
+- Snort는 **시그니처(패턴) 기반** IPS — 요청 내용에 악성 패턴(`<script>`, `../`, SQL 구문 등)이 있어야 탐지
+- 브루트포스 로그인 시도는 각 요청이 **정상 로그인 요청과 완전히 동일** (POST body에 ID/PW만 포함)
+- 브루트포스는 **행위 기반(behavioral)** 공격 — "같은 IP에서 짧은 시간에 반복 시도"가 핵심이지, 개별 요청에 악성 페이로드가 없음
+- Snort의 시그니처 룰로는 **개별 요청의 악성 여부를 판별할 수 없음** → 미탐지
+
+**E-3~E-7 전체 IPS 탐지 결과 종합:**
+
+| 공격 | 탐지 | 미탐지 원인 | 필요한 보완 |
+|------|------|-----------|-----------|
+| E-3 Reflected XSS | ✅ 3건 | — | — |
+| E-4 Stored XSS | **❌ 0건** | POST body 페이로드 → URI 룰 우회 | WAF, 출력 인코딩, CSP |
+| E-5 Command Injection | ⚠️ 1건 (응답만) | POST body 요청 미탐지, 응답측만 포착 | WAF, 입력 검증 |
+| E-6 Directory Traversal | ✅ 2건 (양방향) | — | — |
+| E-7 Brute Force | **❌ 0건** | 개별 요청이 정상과 동일 → 시그니처 없음 | 계정 잠금, fail2ban, SIEM 임계치 알림 |
+
+→ **네트워크 IPS(Snort)의 3가지 한계:**
+1. **POST body 검사 부재** — URI(GET)만 검사, POST body는 놓침 (E-4, E-5 요청측)
+2. **응답 검사 제한** — 민감 패턴(`/etc/passwd`)만 일부 탐지, XSS 응답은 놓침 (E-4)
+3. **행위 기반 탐지 부재** — 반복 시도·임계치 기반 공격은 탐지 불가 (E-7)
+
+→ 이 한계들이 **Phase 2(Splunk 상관분석)** 과 **Phase 3(임계치 알림: 동일 src 50회 이상)** 이 필요한 이유다.
 
 **관제/컨설팅 관점:**
-- 위험도: **High** — 약한 비밀번호 사용 시 계정 탈취
-- 방어: 계정 잠금(N회 실패 시 잠금), CAPTCHA, 로그인 rate-limit, 강한 비밀번호 정책
-- 관제 포인트: 동일 IP에서 짧은 시간에 다수 로그인 시도 = 브루트포스 징후 → 자동 차단 트리거
+- 위험도: **High** — 약한 비밀번호 + 인증 보호 부재 = 계정 탈취
+- 방어: 계정 잠금(5회 실패 시 잠금), CAPTCHA, 로그인 rate-limit, 강한 비밀번호 정책, MFA
+- 관제 포인트: 브루트포스는 IPS가 아닌 **SIEM(Splunk) 임계치 알림**으로 탐지해야 함 — "동일 src에서 5분 내 로그인 시도 20회 이상" 같은 상관분석 룰
+- 컨설팅 관점: **V-04 Brute Force / 인증 취약 (High)**. 개선: 계정 잠금, MFA, CAPTCHA, 강한 비밀번호 정책
+
+**스크린샷:**
+
+![E-7 수동 브루트포스 시도](images/E-7-bruteforce.png)
+![E-7 Snort 미탐지 확인 (Splunk)](images/E-7-snort-splunk.png)
 
 ---
 
@@ -978,7 +1009,7 @@ hydra -l bee -P wordlist.txt 10.0.0.254 \
 | E-4 | Stored XSS | 10:08 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ✘ 미탐지 |
 | E-5 | OS Command Injection | 17:23 | 2026-08-10 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 1건 (응답측) |
 | E-6 | Directory Traversal | 17:55 | 2026-08-10 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 2건 (양방향) |
-| E-7 | Brute Force (hydra) | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
+| E-7 | Brute Force (수동) | 18:15 | 2026-08-10 | 10.50.50.17 | 10.0.0.254 | ☑ | ✘ 미탐지 |
 
 ---
 

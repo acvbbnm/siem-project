@@ -116,9 +116,10 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] E-6: Directory Traversal
   - [x] `../../../etc/passwd` → 시스템 계정 목록 전체 열람 성공
   - [x] Snort 양방향 탐지 2건: 요청 `ET WEB_SERVER /etc/passwd in URI` + 응답 `ET ATTACK_RESPONSE passwd`
-- [ ] E-7: Brute Force (hydra)
-  - [ ] 워드리스트 생성
-  - [ ] `hydra` http-post-form 브루트포스 실행
+- [x] E-7: Brute Force (수동)
+  - [x] 워드리스트 생성 및 hydra 시도 (pfSense NAT 301 리다이렉트로 자동화 실패)
+  - [x] 수동 브루트포스 10회 이상 시도 → bee/bug 로그인 성공
+  - [x] Snort **미탐지** 확인 — 개별 요청이 정상 로그인과 동일, 시그니처 기반 IPS로는 행위 기반 공격 탐지 불가
 - [ ] 실제 수행 시각 기록표 작성 (R/E 단계별 실행 시각 → Splunk 타임차트 대조용)
 - [ ] 실습 정리(Cleanup) — Stored XSS 페이로드·산출물·임시 규칙 원복
 
