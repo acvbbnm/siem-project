@@ -86,8 +86,16 @@ index=pfsense src=10.50.50.17 | stats count by signature | sort -count | head 10
 - [ ] Alerts 전체 목록 캡처 → `images/snort-alerts-overview.png`
 - [ ] 정찰 관련 경보 필터 → `images/snort-alerts-recon.png`
 - [ ] 웹 공격 관련 경보 필터 → `images/snort-alerts-exploit.png`
-- [ ] 총 Alert 건수 기록: ____건
-- [ ] 가장 많이 발생한 시그니처 Top 5 기록
+- [x] 총 Alert 건수 기록: **1,170건** (Snort 경보, Splunk 기준)
+- [x] 가장 많이 발생한 시그니처 카테고리 Top 7:
+  1. ET WEB_SERVER — 640건 (54.7%)
+  2. ET SCAN — 155건 (13.2%)
+  3. ET WEB_SPECIFIC_APPS — 65건 (5.6%)
+  4. ET POLICY — 17건 (1.5%)
+  5. ET INFO — 9건 (0.8%)
+  6. ET EXPLOIT — 4건 (0.3%)
+  7. ET ATTACK_RESPONSE — 2건 (0.2%)
+- [x] pfSense WebGUI Snort Alerts 확인 완료 (Active Log에는 최근 ipify 정보성 경보만 잔존, Phase 1 공격 경보는 Splunk에 보존됨)
 
 ---
 
@@ -180,13 +188,14 @@ index=pfsense "SQL Errors in HTTP 200 Response" | stats count
 
 | 분석 항목 | 결과 |
 |----------|------|
-| 총 이벤트 수 | (기록) |
-| 공격자 IP | 10.50.50.17 (확인) |
-| 공격 유형 수 | (기록) |
-| 가장 많은 시그니처 | (기록) |
-| Snort 미탐지 공격 | E-4 Stored XSS (확인), E-5/E-7은 실습 후 확인 |
-| 정찰 이벤트 비율 | R-1~R-4: __% |
-| 웹공격 이벤트 비율 | E-1~E-7: __% |
+| 총 이벤트 수 | **1,170건** (Snort 경보) |
+| 공격자 IP | **10.50.50.17** — 1,142건 (97.8%) |
+| 공격 유형 수 | 7개 카테고리 (ET WEB_SERVER, SCAN, WEB_SPECIFIC_APPS, POLICY, INFO, EXPLOIT, ATTACK_RESPONSE) |
+| 가장 많은 시그니처 | ET WEB_SERVER — 640건 (54.7%) |
+| Snort 미탐지 공격 | **E-4 Stored XSS** (POST body 미검사), **E-7 Brute Force** (행위기반 탐지 부재) |
+| E-5 Command Injection | 응답측 1건만 탐지 (POST body 미검사, 응답의 /etc/passwd 노출만 탐지) |
+| 시간대별 분포 | 8/3: 925건, 8/4: 214건, 8/5~9: 0건, 8/10: 31건 |
+| 비고 | Snort가 WAN 인터페이스에서 동작하여 Bee-box IP(10.0.10.50) 대신 pfSense WAN IP가 목적지로 기록됨 |
 
 ---
 
