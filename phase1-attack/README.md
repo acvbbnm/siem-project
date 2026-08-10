@@ -765,25 +765,60 @@ http://10.0.0.254/bWAPP/directory_traversal_1.php?page=../../../etc/passwd
 ?page=../../../etc/shadow
 ```
 
-**확인 포인트:**
-- [ ] `/etc/passwd` 내용이 브라우저에 표시됨 = Directory Traversal 성공
-- [ ] `/etc/shadow` 는 권한 문제로 실패할 가능성 높음 (www-data 권한) — 실패해도 정상
-- [ ] 캡처: passwd 열람 결과 → `images/E-6-traversal.png`
+**결과:** ✅ (2026-08-10 17:55 KST)
 
-**Snort 탐지 확인:**
-- Splunk: `index=pfsense 10.50.50.17` (Last 15 minutes)
-- 예상 시그니처:
+**공격 페이로드 & 결과:**
+- URL: `directory_traversal_1.php?page=../../../etc/passwd`
+- `../` 3단계로 웹루트(`/var/www/bWAPP/languages/`)에서 루트(`/`)까지 이동 → `/etc/passwd` 열람 **성공**
+- 브라우저에 시스템 계정 목록 **전체 표시**:
   ```
-  ET WEB_SERVER /etc/passwd Detected in URI
-  (http_inspect) WEBROOT DIRECTORY TRAVERSAL
+  root:x:0:0:root:/root:/bin/bash
+  daemon:x:1:1:daemon:/usr/sbin:/bin/sh
+  www-data:x:33:33:www-data:/var/www:/bin/sh
+  backup:x:34:34:backup:/var/backups:/bin/sh
+  nobody:x:65534:65534:nobody:/nonexistent:/bin/sh
+  libuuid:x:100:101::/var/lib/libuuid:/bin/sh
+  dhcp:x:101:102::/nonexistent:/bin/false
+  syslog:x:102:103::/home/syslog:/bin/false
+  ...
   ```
-- R-3(nikto)에서 이미 같은 룰이 탐지된 바 있음 — 수동 시도에서도 동일하게 탐지될 것
-- 캡처: Splunk 결과 → `images/E-6-snort-splunk.png`
+- E-5(Command Injection)의 `cat /etc/passwd`와 동일 결과 — 같은 파일을 **다른 경로(경로 조작 vs 명령 주입)** 로 열람
+
+**Snort 탐지 성공 — 양방향 탐지 2건 (E-5와 대조적):**
+
+Splunk `index=pfsense 10.50.50.17` 검색 결과:
+```
+ET WEB_SERVER /etc/passwd Detected in URI
+[Classification: Attempted Information Leak] [Priority: 2]
+[TCP] 10.50.50.17:41244 -> 10.0.0.254:80        ← 요청 방향
+
+ET ATTACK_RESPONSE Possible /etc/passwd via HTTP (linux style)
+[Classification: Information Leak] [Priority: 2]
+[TCP] 10.0.0.254:80 -> 10.50.50.17:41244         ← 응답 방향
+```
+
+- **요청(Request)** — ✅ 탐지: `../../../etc/passwd`가 **GET 파라미터(URI)**에 포함 → `ET WEB_SERVER /etc/passwd Detected in URI`
+- **응답(Response)** — ✅ 탐지: 응답 body에 passwd 내용 포함 → `ET ATTACK_RESPONSE passwd via HTTP`
+
+**E-5 vs E-6 탐지 비교 — GET vs POST의 결정적 차이:**
+
+| 공격 | 요청 방식 | 요청 탐지 | 응답 탐지 | 총 탐지 |
+|------|----------|----------|----------|--------|
+| E-5 Command Injection | **POST** body | ❌ 미탐지 | ✅ 1건 | 1건 (응답만) |
+| E-6 Directory Traversal | **GET** URI | ✅ 1건 | ✅ 1건 | **2건 (양방향)** |
+
+→ 동일한 `/etc/passwd` 접근이지만, **GET(URI)**이면 요청+응답 양쪽 탐지, **POST(body)**이면 응답만 탐지. 네트워크 IPS의 URI 편향 탐지를 다시 한번 확인.
 
 **관제/컨설팅 관점:**
 - 위험도: **High** — 시스템 설정파일·소스코드·비밀키 유출 가능
 - 방어: 파일 경로 입력 시 `../` 필터링, `realpath()` + 화이트리스트 기반 경로 검증, `open_basedir` 설정
-- 관제 포인트: URI에 `../`, `/etc/passwd`, `/etc/shadow` 등이 포함되면 즉시 경보 → IPS 룰이 잘 탐지하는 영역
+- 관제 포인트: URI에 `../`, `/etc/passwd` 등이 포함되면 즉시 경보 → **GET 기반 경로 조작은 IPS가 잘 잡는 영역**
+- 컨설팅 관점: **V-03 Directory Traversal (High)**. 개선: 입력값 경로 정규화, 화이트리스트, open_basedir
+
+**스크린샷:**
+
+![E-6 /etc/passwd 열람 성공](images/E-6-traversal.png)
+![E-6 Snort 양방향 탐지 (Splunk)](images/E-6-snort-splunk.png)
 
 ---
 
@@ -942,7 +977,7 @@ hydra -l bee -P wordlist.txt 10.0.0.254 \
 | E-3 | Reflected XSS | 10:03 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 3건 |
 | E-4 | Stored XSS | 10:08 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ✘ 미탐지 |
 | E-5 | OS Command Injection | 17:23 | 2026-08-10 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 1건 (응답측) |
-| E-6 | Directory Traversal | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
+| E-6 | Directory Traversal | 17:55 | 2026-08-10 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 2건 (양방향) |
 | E-7 | Brute Force (hydra) | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
 
 ---

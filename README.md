@@ -113,8 +113,9 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
   - [x] `; whoami` → `www-data` 출력 확인
   - [x] `; cat /etc/passwd` → 시스템 계정 목록 전체 노출 확인
   - [x] Snort 탐지: 요청측 미탐지(POST body), 응답측 `ET ATTACK_RESPONSE passwd` 1건 탐지
-- [ ] E-6: Directory Traversal
-  - [ ] `../../../etc/passwd` 파일 열람 시도
+- [x] E-6: Directory Traversal
+  - [x] `../../../etc/passwd` → 시스템 계정 목록 전체 열람 성공
+  - [x] Snort 양방향 탐지 2건: 요청 `ET WEB_SERVER /etc/passwd in URI` + 응답 `ET ATTACK_RESPONSE passwd`
 - [ ] E-7: Brute Force (hydra)
   - [ ] 워드리스트 생성
   - [ ] `hydra` http-post-form 브루트포스 실행
