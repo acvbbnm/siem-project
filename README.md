@@ -109,9 +109,10 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] E-4: Stored XSS
   - [x] 게시글에 쿠키 탈취 스크립트 저장 → 재접속 시 재실행 확인
   - [x] Snort **미탐지** 확인 (POST body → 응답 body 경로는 URI 검사 룰 우회, IPS 한계점)
-- [ ] E-5: OS Command Injection
-  - [ ] `; whoami`, `; cat /etc/passwd` 등 명령 실행
-  - [ ] Snort "Command Injection" 탐지 확인
+- [x] E-5: OS Command Injection
+  - [x] `; whoami` → `www-data` 출력 확인
+  - [x] `; cat /etc/passwd` → 시스템 계정 목록 전체 노출 확인
+  - [x] Snort 탐지: 요청측 미탐지(POST body), 응답측 `ET ATTACK_RESPONSE passwd` 1건 탐지
 - [ ] E-6: Directory Traversal
   - [ ] `../../../etc/passwd` 파일 열람 시도
 - [ ] E-7: Brute Force (hydra)

