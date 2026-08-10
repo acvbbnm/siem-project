@@ -77,8 +77,9 @@ index=pfsense src=10.50.50.17 | stats count by signature | sort -count | head 10
 | 웹공격 | E-2 SQLi (sqlmap) | `ET SCAN Sqlmap SQL Injection Scan` | P1 | ✅ 211건 |
 | 웹공격 | E-3 Reflected XSS | `ET WEB_SERVER Script tag in URI Possible Cross Site Scripting Attempt` | P1 | ✅ 3건 |
 | 웹공격 | E-4 Stored XSS | — | — | ❌ **미탐지** (IPS 한계) |
-| 웹공격 | E-5 Command Injection | `ET WEB_SERVER cmd=` 또는 `/etc/passwd` | P1 | 실습 대기 |
-| 인증 | E-7 Brute Force | `ET SCAN Hydra User-Agent Detected` | P2 | 실습 대기 |
+| 웹공격 | E-5 Command Injection | `ET WEB_SERVER cmd=` 또는 `/etc/passwd` | P1 | ⚠️ 응답측 1건 (`ET ATTACK_RESPONSE`) |
+| 웹공격 | E-6 Directory Traversal | `ET WEB_SERVER /etc/passwd in URI` | P1 | ✅ 양방향 2건 |
+| 인증 | E-7 Brute Force | `ET SCAN Hydra User-Agent Detected` | P2 | ❌ **미탐지** (행위기반 한계) |
 
 ### 확인 포인트 및 캡처
 
