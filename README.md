@@ -126,25 +126,24 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 ### Phase 2. 탐지/분석 + 방화벽 정책 (mng-mint)
 
 **Snort 경보 확인**
-- [ ] Snort Alerts 확인 (pfSense WebGUI)
-  - [ ] 정찰(포트스캔/nikto) 경보 확인
-  - [ ] 웹 공격(SQLi/XSS/Command Injection) 경보 확인
-  - [ ] Alerts 화면 캡처 저장
+- [x] Snort Alerts 확인 (pfSense WebGUI)
+  - [x] pfSense Services > Snort > Alerts 확인 완료 (Active Log에는 최근 정보성 경보만 잔존)
+  - [x] 총 Snort 경보: **1,170건** (Splunk 기준, All time)
+  - [ ] Alerts 화면 캡처 저장 (이미지 업로드 필요)
 
 **Splunk 로그 분석**
-- [ ] Splunk 로그 분석 — 공격자 IP 식별
-  - [ ] `stats count by src`로 공격자 IP 특정
-  - [ ] `src=10.50.50.17` 트래픽 전체 조회
-- [ ] Splunk 로그 분석 — 공격 유형별 분류
-  - [ ] `top 10 signature`로 공격 유형 집계
-  - [ ] 목적지 포트 분포 확인
-- [ ] Splunk 로그 분석 — 시간대별 공격 분포
-  - [ ] `timechart count by signature` 실행
-  - [ ] 시간대별 추이 차트 캡처
+- [x] Splunk 로그 분석 — 공격자 IP 식별
+  - [x] `"Priority" "10.50.50.17"` → **1,142건 (97.8%)** 확인 — 공격자 IP 특정 완료
+- [x] Splunk 로그 분석 — 공격 유형별 분류
+  - [x] 카테고리별 Top 7: ET WEB_SERVER(640), SCAN(155), WEB_SPECIFIC_APPS(65), POLICY(17), INFO(9), EXPLOIT(4), ATTACK_RESPONSE(2)
+- [x] Splunk 로그 분석 — 시간대별 공격 분포
+  - [x] timechart 실행: 8/3(925건), 8/4(214건), 8/10(31건) — Visualization 차트 확인 완료
+  - [ ] 시간대별 추이 차트 캡처 (이미지 업로드 필요)
 
 **방화벽 정책 대응**
 - [ ] 1차 대응: 공격자 IP 전체 차단 (WAN 규칙)
-  - [ ] WAN에 10.50.50.17 Block 규칙 추가
+  - [x] 적용 전 WAN 규칙 확인 (NAT→10.0.10.50:80 + 기본 Block)
+  - [ ] WAN에 10.50.50.17 Block 규칙 추가 ← **여기까지 진행됨**
   - [ ] 적용 전/후 규칙 캡처
 - [ ] 2차 대응: 서비스 제한 (HTTP만 허용, DMZ 아웃바운드 차단)
   - [ ] HTTP(TCP/80)만 허용, 나머지 차단 규칙 적용
@@ -215,8 +214,8 @@ project/
 | 산출물 | 위치 | 상태 |
 |--------|------|------|
 | 인프라 구축 보고서 | `../13_SIEM_실습보고서.md` / `.docx` | 완료 |
-| 공격 실행 기록 | `phase1-attack/README.md` | 미시작 |
-| Splunk 분석 결과 | `phase2-detect/README.md` | 미시작 |
-| 방화벽 정책 변경 이력 | `phase2-detect/README.md` | 미시작 |
+| 공격 실행 기록 | `phase1-attack/README.md` | **완료** (R-1~R-4, E-1~E-7 전체 기록) |
+| Splunk 분석 결과 | `phase2-detect/README.md` | **진행중** (Step 1~2 완료, Step 3 방화벽 정책 진행중) |
+| 방화벽 정책 변경 이력 | `phase2-detect/README.md` | **진행중** (1차 대응 시작) |
 | 관제 일지 | `phase3-soc/incident-log.md` | 미시작 |
 | 최종 보고서 | `project/` | 미시작 |
