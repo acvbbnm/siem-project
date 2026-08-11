@@ -231,9 +231,21 @@ pfSense WebGUI > Firewall > Rules
 - 규칙 순서: Block(10.50.50.17) > Pass(NAT→10.0.10.50:80) > Block(기본) — **최상위 배치 확인**
 - Apply Changes 완료 — "The changes have been applied successfully"
 
+**차단 검증 (att-mint에서 실행):**
+```
+$ ping 10.0.10.50
+From 10.50.50.1 icmp_seq=1 Destination Host Unreachable
+(6 packets transmitted, 0 received, 100% packet loss)
+
+$ curl http://10.0.10.50
+curl: (7) Failed to connect to 10.0.10.50 port 80: No route to host
+```
+→ **ICMP·HTTP 모두 차단 확인 — 1차 대응 성공**
+
 **캡처:**
 - [ ] 적용 전 WAN 규칙 목록 → `images/fw-1st-before.png`
 - [ ] 적용 후 WAN 규칙 목록 → `images/fw-1st-after.png`
+- [ ] 차단 검증 결과 (ping + curl) → `images/fw-1st-verify.png`
 
 ### 2차 대응 — 서비스 제한 (HTTP만 허용 + DMZ 아웃바운드 차단)
 
