@@ -265,6 +265,11 @@ curl: (7) Failed to connect to 10.0.10.50 port 80: No route to host
 | 1 | **Block** | 10.0.10.0/24 | 10.0.100.0/24 | Any | DMZ→내부(Splunk) 차단 |
 | 2 | **Block** | 10.0.10.0/24 | Any | Any | DMZ 아웃바운드 전체 차단 (리버스쉘 방지) |
 
+**적용 결과:**
+- DMZNET 규칙 순서: Block(아웃바운드 전체) > Block(→Splunk 10.0.100.0/24) > Pass(기존) > Block(기본)
+- Apply Changes 완료 — "The changes have been applied successfully"
+- WAN: 기존 NAT 규칙이 TCP/80만 Pass하므로 추가 변경 불필요
+
 **캡처:**
 - [ ] WAN 규칙 → `images/fw-2nd-wan.png`
 - [ ] DMZNET 규칙 → `images/fw-2nd-dmz.png`
