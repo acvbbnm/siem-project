@@ -141,10 +141,11 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
   - [ ] 시간대별 추이 차트 캡처 (이미지 업로드 필요)
 
 **방화벽 정책 대응**
-- [ ] 1차 대응: 공격자 IP 전체 차단 (WAN 규칙)
+- [x] 1차 대응: 공격자 IP 전체 차단 (WAN 규칙)
   - [x] 적용 전 WAN 규칙 확인 (NAT→10.0.10.50:80 + 기본 Block)
-  - [ ] WAN에 10.50.50.17 Block 규칙 추가 ← **여기까지 진행됨**
-  - [ ] 적용 전/후 규칙 캡처
+  - [x] WAN에 10.50.50.17 Block 규칙 추가 및 Apply Changes 완료
+  - [x] 규칙 순서 확인: Block(10.50.50.17) > Pass(NAT HTTP) > Block(기본) — 최상위 배치 정상
+  - [ ] 적용 전/후 규칙 캡처 (이미지 업로드 필요)
 - [ ] 2차 대응: 서비스 제한 (HTTP만 허용, DMZ 아웃바운드 차단)
   - [ ] HTTP(TCP/80)만 허용, 나머지 차단 규칙 적용
   - [ ] DMZ→내부(10.0.100.0/24) 차단
@@ -216,6 +217,6 @@ project/
 | 인프라 구축 보고서 | `../13_SIEM_실습보고서.md` / `.docx` | 완료 |
 | 공격 실행 기록 | `phase1-attack/README.md` | **완료** (R-1~R-4, E-1~E-7 전체 기록) |
 | Splunk 분석 결과 | `phase2-detect/README.md` | **진행중** (Step 1~2 완료, Step 3 방화벽 정책 진행중) |
-| 방화벽 정책 변경 이력 | `phase2-detect/README.md` | **진행중** (1차 대응 시작) |
+| 방화벽 정책 변경 이력 | `phase2-detect/README.md` | **진행중** (1차 대응 완료, 2차·3차 대기) |
 | 관제 일지 | `phase3-soc/incident-log.md` | 미시작 |
 | 최종 보고서 | `project/` | 미시작 |

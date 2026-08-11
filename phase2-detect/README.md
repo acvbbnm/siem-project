@@ -226,6 +226,11 @@ pfSense WebGUI > Firewall > Rules
 
 4. Save > Apply Changes
 
+**적용 결과:**
+- Action: **Block**, Interface: WAN, Protocol: **Any**, Source: **10.50.50.17**, Destination: Any
+- 규칙 순서: Block(10.50.50.17) > Pass(NAT→10.0.10.50:80) > Block(기본) — **최상위 배치 확인**
+- Apply Changes 완료 — "The changes have been applied successfully"
+
 **캡처:**
 - [ ] 적용 전 WAN 규칙 목록 → `images/fw-1st-before.png`
 - [ ] 적용 후 WAN 규칙 목록 → `images/fw-1st-after.png`
