@@ -150,10 +150,10 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
   - [ ] HTTP(TCP/80)만 허용, 나머지 차단 규칙 적용
   - [ ] DMZ→내부(10.0.100.0/24) 차단
   - [ ] DMZ 아웃바운드 차단 (리버스쉘 방지)
-- [ ] 3차 대응: Snort 차단 모드 전환 (Block Offenders 활성화)
-  - [ ] Block Offenders + Kill States 체크
-  - [ ] Block Duration(3600초) 설정
-  - [ ] 변경 전/후 설정 캡처
+- [x] 3차 대응: Snort 차단 모드 전환 (Block Offenders 활성화)
+  - [x] Block Offenders + Kill States 체크, Which IP to Block: SRC
+  - [x] Snort 재시작 및 자동차단 검증 — nmap 스캔 후 curl 타임아웃 확인
+  - [ ] 변경 전/후 설정 캡처 (이미지 업로드 필요)
 - [ ] 대응 규칙 적용/해제 순서표 정리 (1~3차 on/off 순서 → Phase 3 검증 선행조건)
 
 ### Phase 3. 관제 운영 (SOC 시뮬레이션)

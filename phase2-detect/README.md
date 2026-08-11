@@ -286,9 +286,29 @@ curl: (7) Failed to connect to 10.0.10.50 port 80: No route to host
 
 3. Save > Snort 서비스 재시작 (Interfaces 목록에서 ▶ 재시작)
 
+**적용 결과:**
+- Block Offenders: ☑, Kill States: ☑, Which IP to Block: SRC, IPS Mode: Legacy Mode
+- Snort 서비스 재시작 완료 (Blocking Mode: LEGACY MODE 확인)
+
+**자동차단 검증 (att-mint에서 실행):**
+```
+# 1) 접속 확인 — 1차 Block 규칙 비활성화 상태에서 정상 접속
+$ curl -I http://10.0.0.254 → HTTP/1.1 200 OK
+
+# 2) nmap 포트스캔 → Snort sfPortscan 탐지 트리거
+$ sudo nmap -sS -Pn -p 1-100 10.0.0.254
+80/tcp open http (1.81초 완료)
+
+# 3) 자동차단 확인 — 응답 없음(타임아웃)
+$ curl -I http://10.0.0.254 → 타임아웃 (차단됨)
+```
+→ **Snort 자동차단(Block Offenders) 정상 동작 확인 — 3차 대응 성공**
+
 **캡처:**
 - [ ] 변경 전 Snort 설정 → `images/snort-block-before.png`
 - [ ] 변경 후 Snort 설정 → `images/snort-block-after.png`
+- [ ] Snort Blocked 목록 (차단된 IP) → `images/snort-blocked-list.png`
+- [ ] 자동차단 검증 결과 (nmap + curl 타임아웃) → `images/snort-block-verify.png`
 
 ---
 
