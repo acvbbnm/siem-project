@@ -83,9 +83,9 @@ index=pfsense src=10.50.50.17 | stats count by signature | sort -count | head 10
 
 ### 확인 포인트 및 캡처
 
-- [ ] Alerts 전체 목록 캡처 → `images/snort-alerts-overview.png`
-- [ ] 정찰 관련 경보 필터 → `images/snort-alerts-recon.png`
-- [ ] 웹 공격 관련 경보 필터 → `images/snort-alerts-exploit.png`
+- [x] Alerts 전체 목록 캡처 → `images/snort-alerts-overview.png`
+- [ ] 정찰 관련 경보 필터 → `images/snort-alerts-recon.png` (미확보)
+- [x] 웹 공격 관련 경보 필터 → `images/snort-alerts-exploit.png`
 - [x] 총 Alert 건수 기록: **1,170건** (Snort 경보, Splunk 기준)
 - [x] 가장 많이 발생한 시그니처 카테고리 Top 7:
   1. ET WEB_SERVER — 640건 (54.7%)
@@ -115,7 +115,7 @@ index=pfsense | stats count by src | sort -count | head 10
 **확인 포인트:**
 - [ ] `10.50.50.17`이 최상위에 위치 = 공격자 IP 특정
 - [ ] 다른 IP(10.0.100.1 등)는 pfSense 내부 트래픽 — 정상
-- [ ] 캡처 → `images/splunk-src-stats.png`
+- [x] 캡처 → `images/splunk-src-stats.png`
 
 ### 2-2. 공격자 트래픽 전체 조회
 
@@ -139,7 +139,7 @@ index=pfsense 10.50.50.17 "passwd"    | stats count as Traversal
 
 **확인 포인트:**
 - [ ] 공격 유형별 건수 정리표 작성
-- [ ] 캡처: `top 10 signature` 결과 → `images/splunk-top-signature.png`
+- [x] 캡처: `top 10 signature` 결과 → `images/splunk-top-signature.png`
 
 ### 2-4. 목적지 포트 분포
 
@@ -166,7 +166,7 @@ index=pfsense 10.50.50.17 | timechart span=1m count
   - 8/4 09:29~09:37 → E-1~E-2 SQLi
   - 8/4 10:03~10:04 → E-3 XSS
   - 8/4 10:08 → E-4 Stored XSS (이벤트 없을 수 있음)
-- [ ] 시간대별 추이 차트 캡처 → `images/splunk-timechart.png`
+- [x] 시간대별 추이 차트 캡처 → `images/splunk-timechart.png`
 - [ ] Visualization 탭에서 Line Chart로 전환하여 캡처
 
 ### 2-6. 공격 성공/실패 판별 (심화)
@@ -243,9 +243,9 @@ curl: (7) Failed to connect to 10.0.10.50 port 80: No route to host
 → **ICMP·HTTP 모두 차단 확인 — 1차 대응 성공**
 
 **캡처:**
-- [ ] 적용 전 WAN 규칙 목록 → `images/fw-1st-before.png`
-- [ ] 적용 후 WAN 규칙 목록 → `images/fw-1st-after.png`
-- [ ] 차단 검증 결과 (ping + curl) → `images/fw-1st-verify.png`
+- [x] 적용 전 WAN 규칙 목록 → `images/fw-1st-before.png`
+- [x] 적용 후 WAN 규칙 목록 → `images/fw-1st-after.png`
+- [x] 차단 검증 결과 (ping + curl) → `images/fw-1st-verify.png`
 
 ### 2차 대응 — 서비스 제한 (HTTP만 허용 + DMZ 아웃바운드 차단)
 
@@ -271,8 +271,8 @@ curl: (7) Failed to connect to 10.0.10.50 port 80: No route to host
 - WAN: 기존 NAT 규칙이 TCP/80만 Pass하므로 추가 변경 불필요
 
 **캡처:**
-- [ ] WAN 규칙 → `images/fw-2nd-wan.png`
-- [ ] DMZNET 규칙 → `images/fw-2nd-dmz.png`
+- [ ] WAN 규칙 → `images/fw-2nd-wan.png` (미확보 — 기존 NAT 규칙 변경 없음)
+- [x] DMZNET 규칙 → `images/fw-2nd-dmz.png`
 
 ### 3차 대응 — Snort IPS 차단 모드 전환
 
@@ -310,10 +310,10 @@ $ curl -I http://10.0.0.254 → 타임아웃 (차단됨)
 → **Snort 자동차단(Block Offenders) 정상 동작 확인 — 3차 대응 성공**
 
 **캡처:**
-- [ ] 변경 전 Snort 설정 → `images/snort-block-before.png`
-- [ ] 변경 후 Snort 설정 → `images/snort-block-after.png`
-- [ ] Snort Blocked 목록 (차단된 IP) → `images/snort-blocked-list.png`
-- [ ] 자동차단 검증 결과 (nmap + curl 타임아웃) → `images/snort-block-verify.png`
+- [ ] 변경 전 Snort 설정 → `images/snort-block-before.png` (미확보 — 변경 전 캡처 누락)
+- [x] 변경 후 Snort 설정 → `images/snort-block-after.png`
+- [x] Snort Blocked 목록 (차단된 IP) → `images/snort-blocked-list.png`
+- [x] 자동차단 검증 결과 (nmap + curl 타임아웃) → `images/snort-block-verify.png`
 
 ---
 

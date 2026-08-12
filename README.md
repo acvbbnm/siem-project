@@ -129,7 +129,7 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] Snort Alerts 확인 (pfSense WebGUI)
   - [x] pfSense Services > Snort > Alerts 확인 완료 (Active Log에는 최근 정보성 경보만 잔존)
   - [x] 총 Snort 경보: **1,170건** (Splunk 기준, All time)
-  - [ ] Alerts 화면 캡처 저장 (이미지 업로드 필요)
+  - [x] Alerts 화면 캡처 저장
 
 **Splunk 로그 분석**
 - [x] Splunk 로그 분석 — 공격자 IP 식별
@@ -138,14 +138,14 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
   - [x] 카테고리별 Top 7: ET WEB_SERVER(640), SCAN(155), WEB_SPECIFIC_APPS(65), POLICY(17), INFO(9), EXPLOIT(4), ATTACK_RESPONSE(2)
 - [x] Splunk 로그 분석 — 시간대별 공격 분포
   - [x] timechart 실행: 8/3(925건), 8/4(214건), 8/10(31건) — Visualization 차트 확인 완료
-  - [ ] 시간대별 추이 차트 캡처 (이미지 업로드 필요)
+  - [x] 시간대별 추이 차트 캡처
 
 **방화벽 정책 대응**
 - [x] 1차 대응: 공격자 IP 전체 차단 (WAN 규칙)
   - [x] 적용 전 WAN 규칙 확인 (NAT→10.0.10.50:80 + 기본 Block)
   - [x] WAN에 10.50.50.17 Block 규칙 추가 및 Apply Changes 완료
   - [x] 규칙 순서 확인: Block(10.50.50.17) > Pass(NAT HTTP) > Block(기본) — 최상위 배치 정상
-  - [ ] 적용 전/후 규칙 캡처 (이미지 업로드 필요)
+  - [x] 적용 전/후 규칙 캡처
 - [x] 2차 대응: 서비스 제한 (HTTP만 허용, DMZ 아웃바운드 차단)
   - [x] WAN: 기존 NAT 규칙이 TCP/80만 허용 (추가 변경 불필요)
   - [x] DMZNET: DMZ→내부(10.0.100.0/24) 차단 규칙 추가
@@ -153,7 +153,7 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] 3차 대응: Snort 차단 모드 전환 (Block Offenders 활성화)
   - [x] Block Offenders + Kill States 체크, Which IP to Block: SRC
   - [x] Snort 재시작 및 자동차단 검증 — nmap 스캔 후 curl 타임아웃 확인
-  - [ ] 변경 전/후 설정 캡처 (이미지 업로드 필요)
+  - [x] 변경 후 설정 캡처 (Snort Block Offenders 설정 + Blocked 목록)
 - [ ] 대응 규칙 적용/해제 순서표 정리 (1~3차 on/off 순서 → Phase 3 검증 선행조건)
 
 ### Phase 3. 관제 운영 (SOC 시뮬레이션)
