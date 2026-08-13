@@ -1,0 +1,98 @@
+# Snort 커스텀 룰 — 테크솔루션 SIEM 프로젝트
+# 배치: pfSense > Services > Snort > [인터페이스] > WAN Rules > custom.rules
+# 또는 /usr/local/etc/snort/snort_xxxxx_wan/rules/local.rules
+#
+# SID 범위: 1000001 ~ 1000099 (로컬 사용)
+
+# =====================================================
+# 1. WordPress 로그인 브루트포스 탐지 (5회/분 초과)
+# =====================================================
+alert tcp any any -> $HOME_NET $HTTP_PORTS ( \
+    msg:"[LOCAL] WordPress Login Brute Force Attempt"; \
+    flow:to_server,established; \
+    content:"POST"; http_method; \
+    content:"/wp-login.php"; http_uri; \
+    content:"log="; http_client_body; \
+    threshold:type both, track by_src, count 5, seconds 60; \
+    classtype:attempted-admin; \
+    sid:1000001; rev:1; )
+
+# =====================================================
+# 2. WordPress xmlrpc.php 대량 인증 시도
+# =====================================================
+alert tcp any any -> $HOME_NET $HTTP_PORTS ( \
+    msg:"[LOCAL] WordPress XML-RPC Brute Force"; \
+    flow:to_server,established; \
+    content:"POST"; http_method; \
+    content:"/xmlrpc.php"; http_uri; \
+    content:"wp.getUsersBlogs"; http_client_body; \
+    threshold:type both, track by_src, count 3, seconds 60; \
+    classtype:attempted-admin; \
+    sid:1000002; rev:1; )
+
+# =====================================================
+# 3. PHP 웹쉘 업로드 탐지
+# =====================================================
+alert tcp any any -> $HOME_NET $HTTP_PORTS ( \
+    msg:"[LOCAL] Suspicious PHP File Upload Detected"; \
+    flow:to_server,established; \
+    content:"POST"; http_method; \
+    content:"Content-Type|3a| multipart/form-data"; http_header; \
+    content:".php"; http_client_body; \
+    classtype:web-application-attack; \
+    sid:1000003; rev:1; )
+
+# .phtml 업로드 탐지 (WAF 우회 패턴)
+alert tcp any any -> $HOME_NET $HTTP_PORTS ( \
+    msg:"[LOCAL] PHTML File Upload - Possible WAF Bypass"; \
+    flow:to_server,established; \
+    content:"POST"; http_method; \
+    content:".phtml"; http_client_body; \
+    classtype:web-application-attack; \
+    sid:1000004; rev:1; )
+
+# =====================================================
+# 4. DMZ → inner-net 비정상 통신 탐지
+# =====================================================
+# DMZ(10.0.10.0/24) → inner-net(10.0.100.0/24) MySQL 외 포트 접근
+alert tcp 10.0.10.0/24 any -> 10.0.100.0/24 !3306 ( \
+    msg:"[LOCAL] DMZ to Inner-net Non-MySQL Traffic"; \
+    flow:to_server; \
+    classtype:policy-violation; \
+    sid:1000005; rev:1; )
+
+# DMZ → mng-net(10.0.50.0/24) 접근 시도
+alert ip 10.0.10.0/24 any -> 10.0.50.0/24 any ( \
+    msg:"[LOCAL] DMZ to Management Network Access Attempt"; \
+    classtype:policy-violation; \
+    sid:1000006; rev:1; )
+
+# =====================================================
+# 5. 웹쉘 명령 실행 탐지 (응답에서)
+# =====================================================
+alert tcp $HOME_NET $HTTP_PORTS -> any any ( \
+    msg:"[LOCAL] Possible Webshell Command Output in Response"; \
+    flow:from_server,established; \
+    content:"uid="; content:"gid="; distance:0; within:30; \
+    classtype:web-application-attack; \
+    sid:1000007; rev:1; )
+
+# =====================================================
+# 6. WP File Manager 취약점 접근 탐지 (CVE-2020-25213)
+# =====================================================
+alert tcp any any -> $HOME_NET $HTTP_PORTS ( \
+    msg:"[LOCAL] WP File Manager RCE Attempt (CVE-2020-25213)"; \
+    flow:to_server,established; \
+    content:"/wp-content/plugins/wp-file-manager/lib/php/connector.minimal.php"; http_uri; \
+    classtype:web-application-attack; \
+    sid:1000008; rev:1; )
+
+# =====================================================
+# 7. wpscan User-Agent 탐지
+# =====================================================
+alert tcp any any -> $HOME_NET $HTTP_PORTS ( \
+    msg:"[LOCAL] WPScan Scanner Detected"; \
+    flow:to_server,established; \
+    content:"WPScan"; http_header; \
+    classtype:web-application-activity; \
+    sid:1000009; rev:1; )

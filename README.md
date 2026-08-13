@@ -16,17 +16,23 @@
 | VyOS 라우터 | eth0:DHCP / eth1:10.0.0.1 / eth2:10.50.50.1 | out/rf/att | NAT + 라우팅 |
 | pfSense 방화벽 | WAN:10.0.0.254 / LAN:10.0.50.1 / OPT1:10.0.10.1 / OPT2:10.0.100.1 | 전체 | 방화벽 + Snort IPS |
 | att-mint (공격자) | 10.50.50.17 | att-net | 공격 수행 PC (LinuxMint) |
-| Kali Linux (공격자) | TBD | att-net | 공격 전용 PC (추가 예정) |
+| Kali Linux (공격자) | 10.50.50.30 | att-net | 공격 전용 PC (Phase 2.5~) |
 | Bee-box (웹서버) | 10.0.10.50 | dmz-net | 취약 웹서버 (bWAPP) |
+| **WordPress** (웹서버) | **10.0.10.80** | dmz-net | **회사 홈페이지 (Phase 2.5~)** |
 | Ubuntu/Splunk (SIEM) | 10.0.100.50 | inner-net | 로그 수집/분석 |
+| **MySQL** (DB) | **10.0.100.60** | inner-net | **DB 서버 (Phase 2.5~)** |
 | mng-mint (관리자) | 10.0.50.17 | mng-net | 관제/관리 PC |
 
 ```
-att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ──dmz-net──→ Bee-box
-                                            │
-                                       inner-net──→ Splunk (로그 수집)
-                                            │
-                                        mng-net──→ mng-mint (관제)
+att-mint(10.50.50.17) ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort IPS)
+Kali   (10.50.50.30) ─┘                                  │
+                                                     ┌─ dmz-net ──→ WordPress(10.0.10.80) [Phase 2.5~]
+                                                     │              Bee-box  (10.0.10.50)
+                                                     │
+                                                     ├─ inner-net ──→ Splunk  (10.0.100.50)
+                                                     │                MySQL   (10.0.100.60) [Phase 2.5~]
+                                                     │
+                                                     └─ mng-net ──→ mng-mint(10.0.50.17, 관제+정상유저)
 ```
 
 ---
@@ -63,13 +69,13 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 - [x] 로그 수집 확인 (index=pfsense, 483 events)
 - [ ] Kali Linux VM 설치 (att-net, ESXi에 추가)
   - [ ] Kali Linux ISO 다운로드 및 VM 생성
-  - [ ] att-net 네트워크 연결 및 IP 확인
-- [ ] Kali 공격 도구 확인 (nmap, nikto, sqlmap, hydra, metasploit 등 기본 탑재)
-  - [ ] 정찰 도구 확인 (nmap, nikto, dirb)
+  - [ ] att-net 네트워크 연결 및 IP(10.50.50.30) 확인
+- [ ] Kali 공격 도구 확인 (nmap, nikto, sqlmap, hydra, metasploit, wpscan 등)
+  - [ ] 정찰 도구 확인 (nmap, nikto, dirb, wpscan)
   - [ ] 익스플로잇 도구 확인 (sqlmap, hydra, metasploit)
-- [ ] Kali → Bee-box 접속 확인
-  - [ ] pfSense NAT 경유 접속 확인 (`curl -I http://10.0.0.254`)
-  - [ ] bWAPP 페이지 로딩 확인
+- [ ] Kali → Bee-box / WordPress 접속 확인
+  - [ ] pfSense NAT 경유 접속 확인 (`curl -I http://10.0.0.254`, `curl -I http://10.0.0.254:8080`)
+  - [ ] bWAPP + WordPress 페이지 로딩 확인
 
 ### Phase 1. 공격 수행 (Kali/att-mint → Bee-box)
 
@@ -156,38 +162,78 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
   - [x] 변경 후 설정 캡처 (Snort Block Offenders 설정 + Blocked 목록)
 - [ ] 대응 규칙 적용/해제 순서표 정리 (1~3차 on/off 순서 → Phase 3 검증 선행조건)
 
-### Phase 3. 관제 운영 (SOC 시뮬레이션)
+### Phase 2.5. 실제 운영 환경 구축 (테크솔루션)
+
+- [ ] WordPress 서버 구축 (10.0.10.80, dmz-net)
+  - [ ] Ubuntu 22.04 VM 생성 및 네트워크 설정
+  - [ ] Apache + PHP + WordPress 설치 (`01-wordpress-install.sh`)
+  - [ ] 사이트 설정 + 플러그인 + 사용자 (`01b-wordpress-post-install.sh`)
+  - [ ] WP File Manager 6.9 (CVE-2020-25213) 활성화 확인
+- [ ] MySQL 서버 구축 (10.0.100.60, inner-net)
+  - [ ] Ubuntu 22.04 VM 생성 및 네트워크 설정
+  - [ ] MySQL 설치 + 계정/권한 설정 (`02-mysql-setup.sh`)
+  - [ ] 커스텀 테이블 + 더미 데이터 삽입 (wp_customers 200건, wp_inquiries 50건)
+  - [ ] WordPress ↔ MySQL 연동 확인
+- [ ] ModSecurity WAF 설치 (WordPress 서버)
+  - [ ] ModSecurity + OWASP CRS 설치 (`03-modsecurity-install.sh`)
+  - [ ] 의도적 허점 설정 (SQLi DetectionOnly, .phtml 우회)
+  - [ ] WAF 동작 확인 (XSS 차단, SQLi 통과+로그)
+- [ ] Apache/PHP 의도적 취약점 설정
+  - [ ] ServerTokens Full, TraceEnable On, Options +Indexes
+  - [ ] display_errors On, open_basedir 미설정, disable_functions 미설정
+- [ ] pfSense 방화벽 규칙 추가
+  - [ ] WAN NAT: :8080 → 10.0.10.80:80
+  - [ ] DMZNET: WordPress(10.0.10.80) → MySQL(10.0.100.60:3306) 허용
+  - [ ] Snort 커스텀 룰 9개 등록 (`local.rules`)
+- [ ] Splunk 다중 로그 소스 연동
+  - [ ] 신규 인덱스 생성 (idx_web, idx_waf, idx_db)
+  - [ ] WordPress 서버 UF 설치 (Apache access/error, ModSecurity, WP auth)
+  - [ ] MySQL 서버 UF 설치 (slow query, error log)
+  - [ ] 필드 추출 설정 (`props.conf`)
+  - [ ] 8개 로그 소스 수신 확인
+- [ ] 정상 트래픽 생성 (mng-mint)
+  - [ ] `05-normal-traffic.sh` cron 등록 (5분 간격)
+  - [ ] Splunk에서 정상 트래픽 확인
+- [ ] Kali Linux 추가 (10.50.50.30, att-net)
+  - [ ] VM 생성 + att-net 연결
+  - [ ] Bee-box / WordPress 접속 확인
+
+### Phase 3. 킬체인 공격 + 탐지 엔지니어링
+
+**킬체인 공격 수행**
+- [ ] 정찰 — wpscan + nmap으로 WordPress 스캔 (T1595)
+- [ ] 초기 침투 — SQLi 또는 취약 플러그인 익스플로잇 (T1190)
+- [ ] 인증 공격 — wp-login.php / xmlrpc.php 브루트포스 (T1110)
+- [ ] 지속성 — PHP 웹쉘 업로드 via File Manager CVE (T1505.003)
+- [ ] 내부 정찰 — 웹쉘에서 내부 네트워크 스캔 (T1046)
+- [ ] DB 접근 — wp-config.php 인증정보로 고객 데이터 조회 (T1213)
+- [ ] 유출 시도 — 외부 전송 시도 + DMZNET 차단 확인 (T1041)
+
+**탐지 엔지니어링**
+- [ ] 커스텀 Snort 룰 탐지 테스트 (9개 룰)
+- [ ] Splunk 상관분석 쿼리 구축 (브루트포스, SQLi 교차검증, 웹쉘 접근)
+- [ ] 탐지 개선 전/후 비교표 작성
+- [ ] 정탐/오탐 판별 기록
+
+### Phase 4. 관제 운영 (SOC 시뮬레이션)
 
 **모니터링 체계 구축**
-- [ ] Splunk 대시보드 구축 (공격 현황 시각화)
-  - [ ] 실시간 이벤트 수 패널
-  - [ ] 공격자 IP Top 5 / 공격 유형 분포 패널
-  - [ ] 최근 경보 목록 테이블 패널
-  - [ ] 대시보드 캡처 저장
-- [ ] Splunk Alert 설정 (임계치 기반 경보)
-  - [ ] 포트 스캔 탐지 알림 (동일 src 50회 이상)
-  - [ ] 반복 공격 탐지 알림 (ALERT 10회 이상)
-  - [ ] SQLi 탐지 알림
+- [ ] Splunk 대시보드 구축 (8개 패널: 이벤트 수, IP Top5, 공격 분포, 경보 목록, WAF, 시간추이, 로그인, DB접근)
+- [ ] Splunk Alert 설정 (포트스캔, 브루트포스, SQLi, 웹쉘, WAF 급증)
 
-**관제 대응 및 검증**
+**관제 대응**
 - [ ] 관제 대응 프로세스 실행 (경보분류→분석→대응→검증)
-  - [ ] 1단계: 경보 분류(Triage) — 오탐/위험도 판별
-  - [ ] 2단계: 상세 분석 — 페이로드·성공여부·과거이력
-  - [ ] 3단계: 대응 조치 — 위험도별 차단/모니터링
-- [ ] 차단 검증 — IP 차단 후 재공격 시도
-  - [ ] att-mint에서 curl/nmap/ping 재시도
-  - [ ] 차단(Connection refused/timeout) 확인
-- [ ] 차단 검증 — Snort 자동차단 동작 확인
-  - [ ] SQLi 재시도 후 자동 차단 확인
-  - [ ] pfSense Snort > Blocked 목록 확인
-  - [ ] 차단 해제 → 재공격 → 재차단 검증
+  - [ ] 킬체인 공격 실시간 대응 (Kali 공격 ↔ mng-mint 관제)
+  - [ ] 정탐/오탐 판별 (정상 트래픽 vs 공격 트래픽 구분)
+- [ ] 차단 검증 — 단계별 차단 후 재공격 시도
+- [ ] MITRE ATT&CK 매핑 + 킬체인 분석 다이어그램
 
 **보고**
-- [ ] 관제 일지 작성
-  - [ ] INC-xxx 양식으로 탐지 건별 기록 (incident-log.md)
+- [ ] 관제 일지 작성 (INC-xxx 양식, `phase4-soc/incident-log.md`)
 - [ ] 최종 보고서 작성
-  - [ ] Phase 1~3 결과 취합
-  - [ ] 제출용 보고서 초안 생성 (`/phase-report`)
+  - [ ] Executive Summary (경영진용)
+  - [ ] 공격 분석 + 탐지 현황 + 대응 조치 + 개선 권고
+  - [ ] 부록: IOC 목록, Splunk 쿼리 모음
 
 ---
 
@@ -195,17 +241,28 @@ att-mint ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort) ─�
 
 ```
 project/
-├── README.md              ← 이 파일 (전체 진행상황 체크리스트)
-├── phase1-attack/          ← 공격 수행 기록
-│   ├── README.md           ← Phase 1 상세 절차 및 결과
-│   └── images/             ← 공격 실행 캡처
-├── phase2-detect/          ← 탐지/분석 + 방화벽 정책
-│   ├── README.md           ← Phase 2 상세 분석 및 정책
-│   └── images/             ← Splunk 쿼리, Snort 경보, 방화벽 규칙 캡처
-└── phase3-soc/             ← 관제 운영
-    ├── README.md           ← Phase 3 관제 프로세스 및 결과
-    ├── images/             ← 대시보드, 알림, 관제 화면 캡처
-    └── incident-log.md     ← 관제 일지
+├── README.md                ← 이 파일 (전체 진행상황 체크리스트)
+├── CLAUDE.md                ← Claude 세션 규칙
+├── 프로젝트-확장방향.md        ← 확장 계획 상세 설계
+├── phase1-attack/            ← Phase 1: 공격 수행 기록
+│   ├── README.md
+│   └── images/
+├── phase2-detect/            ← Phase 2: 탐지/분석 + 방화벽 정책
+│   ├── README.md
+│   └── images/
+├── phase2.5-setup/           ← Phase 2.5: 실제 운영 환경 구축
+│   ├── README.md             ← 구축 가이드
+│   ├── scripts/              ← 설치 스크립트 (WordPress, MySQL, ModSec, Splunk UF)
+│   ├── configs/              ← 설정 파일 (Apache, PHP, ModSecurity, Snort, pfSense)
+│   ├── sql/                  ← DB 스키마 + 더미 데이터
+│   └── splunk/               ← Splunk 인덱스·필드추출 설정
+├── phase3-killchain/         ← Phase 3: 킬체인 공격 + 탐지 엔지니어링
+│   ├── README.md
+│   └── images/
+└── phase4-soc/               ← Phase 4: 관제 운영 (SOC 시뮬레이션)
+    ├── README.md
+    ├── images/
+    └── incident-log.md       ← 관제 일지
 ```
 
 ---
@@ -215,8 +272,10 @@ project/
 | 산출물 | 위치 | 상태 |
 |--------|------|------|
 | 인프라 구축 보고서 | `../13_SIEM_실습보고서.md` / `.docx` | 완료 |
-| 공격 실행 기록 | `phase1-attack/README.md` | **완료** (R-1~R-4, E-1~E-7 전체 기록) |
-| Splunk 분석 결과 | `phase2-detect/README.md` | **진행중** (Step 1~2 완료, Step 3 방화벽 정책 진행중) |
-| 방화벽 정책 변경 이력 | `phase2-detect/README.md` | **완료** (1차·2차·3차 대응 전체 완료) |
-| 관제 일지 | `phase3-soc/incident-log.md` | 미시작 |
-| 최종 보고서 | `project/` | 미시작 |
+| 공격 실행 기록 (Bee-box) | `phase1-attack/README.md` | **완료** (R-1~R-4, E-1~E-7) |
+| Splunk 분석 + 방화벽 정책 | `phase2-detect/README.md` | **완료** (1차·2차·3차 대응) |
+| 환경 확장 설계서 | `프로젝트-확장방향.md` | **완료** |
+| 환경 구축 스크립트·설정 | `phase2.5-setup/` | **준비 완료** (VM 구축 대기) |
+| 킬체인 공격 기록 | `phase3-killchain/README.md` | 미시작 |
+| 관제 일지 | `phase4-soc/incident-log.md` | 미시작 |
+| 최종 보고서 | `phase4-soc/` | 미시작 |

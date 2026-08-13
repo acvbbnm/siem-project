@@ -13,30 +13,38 @@
 ## 2. 인프라 토폴로지
 
 ```
-att-mint(10.50.50.17) ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort IPS) ──dmz-net──→ Bee-box(10.0.10.50)
-                                                          │
-                                                     inner-net──→ Splunk(10.0.100.50:8000)
-                                                          │
-                                                      mng-net──→ mng-mint(10.0.50.17, 관제)
+att-mint(10.50.50.17) ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort IPS)
+Kali   (10.50.50.30) ─┘                                  │
+                                                     ┌─ dmz-net ──→ WordPress(10.0.10.80) + ModSecurity
+                                                     │              Bee-box  (10.0.10.50)
+                                                     ├─ inner-net ──→ Splunk(10.0.100.50)
+                                                     │                MySQL (10.0.100.60)
+                                                     └─ mng-net ──→ mng-mint(10.0.50.17, 관제+정상유저)
 ```
 
 | 구성요소 | IP | 역할 |
 |---|---|---|
 | att-mint | 10.50.50.17 | 공격자 PC (LinuxMint) |
+| Kali | 10.50.50.30 | 공격 전용 PC |
 | pfSense | WAN 10.0.0.254 / LAN 10.0.50.1 / OPT1 10.0.10.1 / OPT2 10.0.100.1 | 방화벽 + Snort IPS |
 | Bee-box | 10.0.10.50 | 취약 웹서버 (bWAPP) |
-| Splunk | 10.0.100.50:8000 | 로그 수집/분석 (index=pfsense) |
+| WordPress | 10.0.10.80 | 회사 홈페이지 (+ ModSecurity WAF) |
+| Splunk | 10.0.100.50:8000 | 로그 수집/분석 (8개 소스) |
+| MySQL | 10.0.100.60 | DB 서버 (고객 데이터) |
 | mng-mint | 10.0.50.17 | 관제/관리 PC |
 
 ## 3. 리포지토리 구조
 
 ```
 siem-project/
-├── README.md            ← 전체 진행상황 체크리스트 (Single Source of Truth)
-├── CLAUDE.md            ← 이 파일
-├── phase1-attack/       ← 공격 수행 기록 (README + images/)
-├── phase2-detect/       ← 탐지/분석 + 방화벽 정책 (README + images/)
-└── phase3-soc/          ← 관제 운영 (README + incident-log.md + images/)
+├── README.md              ← 전체 진행상황 체크리스트 (Single Source of Truth)
+├── CLAUDE.md              ← 이 파일
+├── 프로젝트-확장방향.md      ← 확장 계획 상세 설계
+├── phase1-attack/          ← Bee-box 공격 수행 기록
+├── phase2-detect/          ← 탐지/분석 + 방화벽 정책
+├── phase2.5-setup/         ← 실제 운영 환경 구축 (스크립트·설정·SQL)
+├── phase3-killchain/       ← 킬체인 공격 + 탐지 엔지니어링
+└── phase4-soc/             ← 관제 운영 (대시보드·일지·보고서)
 ```
 
 ## 4. 작업 규칙 (Conventions)
@@ -44,7 +52,7 @@ siem-project/
 - **진행상황의 단일 출처는 루트 `README.md`의 체크리스트다.** 작업을 완료하면 해당 `- [ ]`를 `- [x]`로 바꾸고, 상세 결과는 각 phase README의 "결과:" 블록에 채운다.
 - 각 실습 결과는 **명령어 → 실제 출력 → 스크린샷 경로(images/) → Snort/Splunk 탐지 여부** 순서로 기록한다.
 - 캡처 이미지는 해당 phase의 `images/` 폴더에 넣고, 마크다운에서 상대경로로 참조한다.
-- 관제 일지는 `phase3-soc/incident-log.md`의 `[INC-xxx]` 양식을 따른다.
+- 관제 일지는 `phase4-soc/incident-log.md`의 `[INC-xxx]` 양식을 따른다.
 - 커밋 메시지는 한국어로, `phaseN: <무엇을 했는지>` 형식을 권장한다. 예) `phase1: R-1 포트스캔 결과 기록`.
 
 ## 5. Claude에게 바라는 기본 동작
