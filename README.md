@@ -164,26 +164,26 @@ Kali   (10.50.50.30) ─┘                                  │
 
 ### Phase 2.5. 실제 운영 환경 구축 (테크솔루션)
 
-- [ ] WordPress 서버 구축 (10.0.10.80, dmz-net)
-  - [ ] Ubuntu 22.04 VM 생성 및 네트워크 설정
-  - [ ] Apache + PHP + WordPress 설치 (`01-wordpress-install.sh`)
-  - [ ] 사이트 설정 + 플러그인 + 사용자 (`01b-wordpress-post-install.sh`)
-  - [ ] WP File Manager 6.9 (CVE-2020-25213) 활성화 확인
-- [ ] MySQL 서버 구축 (10.0.100.60, inner-net)
-  - [ ] Ubuntu 22.04 VM 생성 및 네트워크 설정
-  - [ ] MySQL 설치 + 계정/권한 설정 (`02-mysql-setup.sh`)
-  - [ ] 커스텀 테이블 + 더미 데이터 삽입 (wp_customers 200건, wp_inquiries 50건)
-  - [ ] WordPress ↔ MySQL 연동 확인
-- [ ] ModSecurity WAF 설치 (WordPress 서버)
-  - [ ] ModSecurity + OWASP CRS 설치 (`03-modsecurity-install.sh`)
-  - [ ] 의도적 허점 설정 (SQLi DetectionOnly, .phtml 우회)
+- [x] WordPress 서버 구축 (10.0.10.80, dmz-net)
+  - [x] Ubuntu 20.04 VM 생성 및 네트워크 설정 (gateway4 방식)
+  - [x] Apache + PHP + WordPress 설치 (버전리스 패키지 사용)
+  - [x] 사이트 설정 (techsolution, admin 계정)
+  - [x] WP File Manager 8.0.4 + 취약 엔드포인트 시뮬레이션 (CVE-2020-25213)
+- [x] MySQL 서버 구축 (10.0.100.60, inner-net)
+  - [x] Ubuntu 20.04 VM 생성 및 네트워크 설정
+  - [x] MySQL 8.0.42 설치 + 계정/권한 설정
+  - [x] 커스텀 테이블 (wp_customers, wp_inquiries) + employees 샘플 DB (300,024건)
+  - [x] WordPress ↔ MySQL 연동 확인
+- [x] ModSecurity WAF 설치 (WordPress 서버)
+  - [x] ModSecurity 2.9.3 + OWASP CRS 3.2.0 설치
+  - [x] DetectionOnly 모드 (탐지만, 차단 안 함)
   - [ ] WAF 동작 확인 (XSS 차단, SQLi 통과+로그)
-- [ ] Apache/PHP 의도적 취약점 설정
-  - [ ] ServerTokens Full, TraceEnable On, Options +Indexes
+- [x] Apache/PHP 의도적 취약점 설정
+  - [x] ServerTokens Full, ServerSignature On
   - [ ] display_errors On, open_basedir 미설정, disable_functions 미설정
-- [ ] pfSense 방화벽 규칙 추가
-  - [ ] WAN NAT: :8080 → 10.0.10.80:80
-  - [ ] DMZNET: WordPress(10.0.10.80) → MySQL(10.0.100.60:3306) 허용
+- [x] pfSense 방화벽 규칙 추가
+  - [x] WAN NAT: :8080 → 10.0.10.80:80
+  - [x] DMZNET: WordPress(10.0.10.80) → MySQL(10.0.100.60:3306) 허용
   - [ ] Snort 커스텀 룰 9개 등록 (`local.rules`)
 - [ ] Splunk 다중 로그 소스 연동
   - [ ] 신규 인덱스 생성 (idx_web, idx_waf, idx_db)
@@ -194,8 +194,8 @@ Kali   (10.50.50.30) ─┘                                  │
 - [ ] 정상 트래픽 생성 (mng-mint)
   - [ ] `05-normal-traffic.sh` cron 등록 (5분 간격)
   - [ ] Splunk에서 정상 트래픽 확인
-- [ ] Kali Linux 추가 (10.50.50.30, att-net)
-  - [ ] VM 생성 + att-net 연결
+- [ ] Kali Linux 설정 (로컬 VM, att-net)
+  - [ ] att-net 연결 및 IP(10.50.50.30) 확인
   - [ ] Bee-box / WordPress 접속 확인
 
 ### Phase 3. 킬체인 공격 + 탐지 엔지니어링
@@ -275,7 +275,7 @@ project/
 | 공격 실행 기록 (Bee-box) | `phase1-attack/README.md` | **완료** (R-1~R-4, E-1~E-7) |
 | Splunk 분석 + 방화벽 정책 | `phase2-detect/README.md` | **완료** (1차·2차·3차 대응) |
 | 환경 확장 설계서 | `프로젝트-확장방향.md` | **완료** |
-| 환경 구축 스크립트·설정 | `phase2.5-setup/` | **준비 완료** (VM 구축 대기) |
+| 환경 구축 스크립트·설정 | `phase2.5-setup/` | **진행 중** (WP+MySQL+WAF 완료, Splunk UF 미완) |
 | 킬체인 공격 기록 | `phase3-killchain/README.md` | 미시작 |
 | 관제 일지 | `phase4-soc/incident-log.md` | 미시작 |
 | 최종 보고서 | `phase4-soc/` | 미시작 |
