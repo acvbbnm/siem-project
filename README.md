@@ -185,12 +185,13 @@ Kali   (10.50.50.30) ─┘                                  │
   - [x] WAN NAT: :8080 → 10.0.10.80:80
   - [x] DMZNET: WordPress(10.0.10.80) → MySQL(10.0.100.60:3306) 허용
   - [ ] Snort 커스텀 룰 9개 등록 (`local.rules`)
-- [ ] Splunk 다중 로그 소스 연동
+- [x] Splunk 다중 로그 소스 연동 (rsyslog 방식)
+  - [x] Splunk TCP 9514 입력 설정
+  - [x] WordPress rsyslog 설정 (Apache access/error, ModSecurity audit)
+  - [x] MySQL rsyslog 설정 (error log, slow query)
+  - [x] Splunk 수신 확인 (19 events, host=mysql/wordpress)
   - [ ] 신규 인덱스 생성 (idx_web, idx_waf, idx_db)
-  - [ ] WordPress 서버 UF 설치 (Apache access/error, ModSecurity, WP auth)
-  - [ ] MySQL 서버 UF 설치 (slow query, error log)
   - [ ] 필드 추출 설정 (`props.conf`)
-  - [ ] 8개 로그 소스 수신 확인
 - [ ] 정상 트래픽 생성 (mng-mint)
   - [ ] `05-normal-traffic.sh` cron 등록 (5분 간격)
   - [ ] Splunk에서 정상 트래픽 확인
@@ -275,7 +276,7 @@ project/
 | 공격 실행 기록 (Bee-box) | `phase1-attack/README.md` | **완료** (R-1~R-4, E-1~E-7) |
 | Splunk 분석 + 방화벽 정책 | `phase2-detect/README.md` | **완료** (1차·2차·3차 대응) |
 | 환경 확장 설계서 | `프로젝트-확장방향.md` | **완료** |
-| 환경 구축 스크립트·설정 | `phase2.5-setup/` | **진행 중** (WP+MySQL+WAF 완료, Splunk UF 미완) |
+| 환경 구축 스크립트·설정 | `phase2.5-setup/` | **진행 중** (WP+MySQL+WAF+rsyslog 완료, 인덱스·필드추출 미완) |
 | 킬체인 공격 기록 | `phase3-killchain/README.md` | 미시작 |
 | 관제 일지 | `phase4-soc/incident-log.md` | 미시작 |
 | 최종 보고서 | `phase4-soc/` | 미시작 |
