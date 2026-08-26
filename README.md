@@ -70,9 +70,9 @@ Kali   (10.50.50.30) ─┘                                  │
 - [x] Kali Linux VM 설치 (att-net, ESXi에 추가)
   - [x] OVF 이관 (VMware Workstation → ESXi 6.7, vmx-14 호환)
   - [x] att-net 네트워크 연결 및 IP(10.50.50.30) 설정 (`/etc/network/interfaces`)
-- [ ] Kali 공격 도구 확인 (nmap, nikto, sqlmap, hydra, metasploit, wpscan 등)
-  - [ ] 정찰 도구 확인 (nmap, nikto, dirb, wpscan)
-  - [ ] 익스플로잇 도구 확인 (sqlmap, hydra, metasploit)
+- [x] Kali 공격 도구 확인 (nmap, nikto, sqlmap, hydra, metasploit, wpscan 등)
+  - [x] 정찰 도구 확인 (nmap, nikto, dirb, wpscan)
+  - [x] 익스플로잇 도구 확인 (sqlmap, hydra, msfconsole)
 - [x] Kali → Bee-box / WordPress 접속 확인
   - [x] pfSense NAT 경유 접속 확인 (`curl -I http://10.0.0.254` → 200, `curl -I http://10.0.0.254:8080` → 301)
   - [ ] bWAPP + WordPress 페이지 로딩 확인
@@ -180,7 +180,7 @@ Kali   (10.50.50.30) ─┘                                  │
   - [ ] WAF 동작 확인 (XSS 차단, SQLi 통과+로그)
 - [x] Apache/PHP 의도적 취약점 설정
   - [x] ServerTokens Full, ServerSignature On
-  - [ ] display_errors On, open_basedir 미설정, disable_functions 미설정
+  - [x] display_errors On (기본값 On 확인), open_basedir 미설정, disable_functions 미설정
 - [x] pfSense 방화벽 규칙 추가
   - [x] WAN NAT: :8080 → 10.0.10.80:80
   - [x] DMZNET: WordPress(10.0.10.80) → MySQL(10.0.100.60:3306) 허용
@@ -191,7 +191,7 @@ Kali   (10.50.50.30) ─┘                                  │
   - [x] MySQL rsyslog 설정 (error log, slow query)
   - [x] Splunk 수신 확인 (19 events, host=mysql/wordpress)
   - [x] 신규 인덱스 생성 (idx_web, idx_waf, idx_db)
-  - [ ] 필드 추출 설정 (`props.conf`)
+  - [x] 필드 추출 설정 (`props.conf`, `transforms.conf`)
 - [x] 정상 트래픽 생성 (mng-mint)
   - [x] `05-normal-traffic.sh` cron 등록 (5분 간격)
   - [ ] Splunk에서 정상 트래픽 확인
