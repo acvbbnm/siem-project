@@ -38,18 +38,40 @@ Snort가 **Blocking Mode**로 동작 중이면 공격자 IP(10.50.50.17, 10.50.5
 
 ### 1-1. 정찰 (Reconnaissance)
 
+**nmap 포트/서비스 스캔:**
+```bash
+# Kali (10.50.50.30)
+nmap -sV -Pn -p 80,443,8080,3306 10.0.0.254
+```
+
+**nmap 결과:**
+| 포트 | 상태 | 서비스 | 버전 |
+|------|------|--------|------|
+| 80/tcp | open | http | Apache 2.2.8 (Bee-box) |
+| 443/tcp | filtered | https | — |
+| 3306/tcp | filtered | mysql | — |
+| 8080/tcp | open | http | Apache 2.4.41 (WordPress) |
+
 **wpscan 스캔:**
 ```bash
 # Kali (10.50.50.30)
-wpscan --url http://10.0.0.254:8080 --enumerate vp,vt,u --api-token [TOKEN]
+wpscan --url http://10.0.0.254:8080 --enumerate vp,vt,u --disable-tls-checks --force
 ```
 
-**결과:**
-<!-- 실습 후 기록 -->
+**wpscan 결과 (1,970 requests / 약 4분 소요):**
+- WordPress **7.1** 식별 (OPML Generator, Aggressive Detection)
+- **XML-RPC 활성화** (`/xmlrpc.php`) — 브루트포스·DDoS 벡터
+- **readme.html 노출** — 버전 정보 유출
+- **Upload 디렉토리 리스팅 활성화** (`/wp-content/uploads/`)
+- **WP-Cron 활성화** (`/wp-cron.php`) — DDoS 벡터 (60% Confidence)
+- 플러그인/테마/사용자 열거: 미탐지 (301 리다이렉트로 인한 제한)
+- 서버 헤더: Apache/2.2.8, PHP/5.2.4, OpenSSL/0.9.8g (Bee-box 측 헤더 — 리다이렉트 경유)
+
+> **참고:** WordPress siteurl이 내부 IP(10.0.10.80)로 설정되어 있어 NAT 접근 시 301 리다이렉트 발생. Effective URL이 Bee-box(:80)로 변경됨. 일부 결과는 Bee-box와 혼재될 수 있음.
 
 **탐지 확인:**
-- Apache access.log: <!-- 로그 확인 -->
-- Snort: <!-- 경보 확인 -->
+- Apache access.log: <!-- Splunk에서 idx_web 검색 -->
+- Snort: <!-- SID 1000001 WPScan User-Agent 탐지 확인 -->
 - ModSecurity: <!-- WAF 로그 확인 -->
 
 ---
