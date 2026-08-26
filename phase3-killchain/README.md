@@ -78,19 +78,24 @@ wpscan --url http://10.0.0.254:8080 --enumerate vp,vt,u --disable-tls-checks --f
 
 ### 1-2. SQL Injection (초기 침투)
 
-**수동 SQLi:**
+**sqlmap 자동화 SQLi:**
 ```bash
-# WordPress 검색 기능 또는 플러그인 파라미터 대상
-sqlmap -u "http://10.0.0.254:8080/?s=test" --dbs
+# Kali (10.50.50.30)
+sqlmap -u "http://10.0.0.254:8080/?s=test" --dbs --batch
 ```
 
 **결과:**
-<!-- 실습 후 기록 -->
+- **SQLi 실패** — "all tested parameters do not appear to be injectable"
+- WordPress 코어 검색 파라미터(`?s=`)는 Prepared Statement로 보호됨
+- 약 13분간 다양한 기법 시도: Boolean-based blind, Error-based, Time-based blind, UNION query
+- **공격 시도 자체가 Snort/Splunk에 대량 기록됨** (탐지 관점에서 유의미)
+
+> 결론: WordPress 코어는 SQLi에 안전. 실제 공격에서는 취약 플러그인을 통한 SQLi가 주 벡터.
 
 **다중 소스 탐지 확인:**
-- Snort: <!-- ET WEB_SERVER 경보 -->
-- ModSecurity: <!-- 942xxx 탐지 로그 (차단 안 됨, DetectionOnly) -->
-- Apache access.log: <!-- 비정상 파라미터 -->
+- Snort: <!-- SID 1000004 UNION SELECT 탐지 확인 -->
+- ModSecurity: <!-- 942xxx 탐지 로그 확인 -->
+- Apache access.log: <!-- idx_web에서 sqlmap 요청 확인 -->
 
 ---
 
