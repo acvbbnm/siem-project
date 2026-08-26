@@ -67,14 +67,14 @@ Kali   (10.50.50.30) ─┘                                  │
   - [x] GPLv2 + ET Open 룰셋 등록
 - [x] syslog 원격 전송 설정 (pfSense → Splunk UDP 514)
 - [x] 로그 수집 확인 (index=pfsense, 483 events)
-- [ ] Kali Linux VM 설치 (att-net, ESXi에 추가)
-  - [ ] Kali Linux ISO 다운로드 및 VM 생성
-  - [ ] att-net 네트워크 연결 및 IP(10.50.50.30) 확인
+- [x] Kali Linux VM 설치 (att-net, ESXi에 추가)
+  - [x] OVF 이관 (VMware Workstation → ESXi 6.7, vmx-14 호환)
+  - [x] att-net 네트워크 연결 및 IP(10.50.50.30) 설정 (`/etc/network/interfaces`)
 - [ ] Kali 공격 도구 확인 (nmap, nikto, sqlmap, hydra, metasploit, wpscan 등)
   - [ ] 정찰 도구 확인 (nmap, nikto, dirb, wpscan)
   - [ ] 익스플로잇 도구 확인 (sqlmap, hydra, metasploit)
-- [ ] Kali → Bee-box / WordPress 접속 확인
-  - [ ] pfSense NAT 경유 접속 확인 (`curl -I http://10.0.0.254`, `curl -I http://10.0.0.254:8080`)
+- [x] Kali → Bee-box / WordPress 접속 확인
+  - [x] pfSense NAT 경유 접속 확인 (`curl -I http://10.0.0.254` → 200, `curl -I http://10.0.0.254:8080` → 301)
   - [ ] bWAPP + WordPress 페이지 로딩 확인
 
 ### Phase 1. 공격 수행 (Kali/att-mint → Bee-box)
@@ -184,20 +184,20 @@ Kali   (10.50.50.30) ─┘                                  │
 - [x] pfSense 방화벽 규칙 추가
   - [x] WAN NAT: :8080 → 10.0.10.80:80
   - [x] DMZNET: WordPress(10.0.10.80) → MySQL(10.0.100.60:3306) 허용
-  - [ ] Snort 커스텀 룰 9개 등록 (`local.rules`)
+  - [x] Snort 커스텀 룰 9개 등록 (`local.rules`) — SID 1000001~1000009
 - [x] Splunk 다중 로그 소스 연동 (rsyslog 방식)
   - [x] Splunk TCP 9514 입력 설정
   - [x] WordPress rsyslog 설정 (Apache access/error, ModSecurity audit)
   - [x] MySQL rsyslog 설정 (error log, slow query)
   - [x] Splunk 수신 확인 (19 events, host=mysql/wordpress)
-  - [ ] 신규 인덱스 생성 (idx_web, idx_waf, idx_db)
+  - [x] 신규 인덱스 생성 (idx_web, idx_waf, idx_db)
   - [ ] 필드 추출 설정 (`props.conf`)
-- [ ] 정상 트래픽 생성 (mng-mint)
-  - [ ] `05-normal-traffic.sh` cron 등록 (5분 간격)
+- [x] 정상 트래픽 생성 (mng-mint)
+  - [x] `05-normal-traffic.sh` cron 등록 (5분 간격)
   - [ ] Splunk에서 정상 트래픽 확인
-- [ ] Kali Linux 설정 (로컬 VM, att-net)
-  - [ ] att-net 연결 및 IP(10.50.50.30) 확인
-  - [ ] Bee-box / WordPress 접속 확인
+- [x] Kali Linux 설정 (ESXi, att-net)
+  - [x] OVF 이관 및 att-net 연결, IP(10.50.50.30) 설정
+  - [x] Bee-box / WordPress 접속 확인 (NAT 경유: :80→Bee-box, :8080→WordPress)
 
 ### Phase 3. 킬체인 공격 + 탐지 엔지니어링
 

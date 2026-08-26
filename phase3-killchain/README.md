@@ -4,6 +4,20 @@
 
 ---
 
+## ⚠️ 공격 전 Snort 설정 주의사항
+
+Snort가 **Blocking Mode**로 동작 중이면 공격자 IP(10.50.50.17, 10.50.50.30)가
+`snort2c` 차단 테이블에 자동 등록되어 **이후 모든 트래픽이 차단**됩니다.
+
+**공격 수행 전 반드시 아래 중 하나를 적용:**
+
+1. **(권장) Alert Only 모드로 전환** — Services → Snort → Snort Interfaces → WAN 편집 → Block Offenders 체크 해제 → Save → Snort 재시작  
+   - 탐지(Alert)는 기록되지만 IP 차단은 하지 않음
+2. **Pass List에 공격자 대역 추가** — Services → Snort → Pass Lists → att-net(10.50.50.0/24)을 Pass List에 추가 후 WAN 인터페이스에 적용
+3. **차단된 경우 복구** — Services → Snort → Blocked 탭 → Clear 또는 Diagnostics → Tables → snort2c 테이블에서 해당 IP 삭제
+
+---
+
 ## 공격 시나리오
 
 **"외부 해커가 회사 홈페이지를 통해 고객 DB 탈취 시도"**
