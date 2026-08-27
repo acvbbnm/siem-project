@@ -530,23 +530,21 @@ index=pfsense "[LOCAL]"
 #### 상관분석 1. 브루트포스 탐지 — 다중 소스 교차
 
 ```spl
-(index=idx_web sourcetype="apache:access" uri="/wp-login.php" method="POST")
-OR (index=pfsense "[LOCAL] WordPress Login Brute Force")
-| eval source=if(index="idx_web","Apache","Snort")
-| eval attacker=coalesce(clientip, src_ip)
-| stats count by attacker, source
-| where count > 5
-| sort -count
-| rename attacker as "공격자 IP", count as "요청 수", source as "탐지 소스"
+index=idx_web "wp-login.php"
+| eval source="Apache"
+| append [search index=pfsense "1000001" | eval source="Snort"]
+| stats count by source
 ```
 
-**예상 결과:**
+**실제 결과:**
 ```
-공격자 IP       | 탐지 소스 | 요청 수
-10.50.50.30     | Apache    | 13+     (hydra POST 요청)
-10.50.50.30     | Snort     | 1,978   (SID 1000001 경보)
+탐지 소스 | 건수
+----------|------
+Apache    | 317   (wp-login.php 접근 로그)
+Snort     | 1,973 (SID 1000001 경보)
 ```
-> Splunk에서 실행하여 실제 건수 확인 후 위 표를 갱신하세요.
+> 동일 브루트포스 공격이 웹 서버(Apache)와 IDS(Snort) 양쪽에서 모두 탐지됨.
+> Snort 건수가 더 많은 이유: threshold 기반 경보가 반복 집계된 결과.
 
 ---
 
