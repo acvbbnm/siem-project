@@ -687,6 +687,34 @@ index=pfsense ("1000001" OR "1000002" OR "1000004" OR "1000006")
 > 킬체인 시간 흐름: **정찰(15:35) → 브루트포스(16:05) → SQLi(16:08) → 웹쉘(17:55)**
 > 약 2시간 20분에 걸쳐 공격 단계가 순차적으로 진행됨.
 
+**확장: 6단계 전체 킬체인 타임라인 (WPScan 제외, 다중 소스):**
+```spl
+index=pfsense ("1000002" OR "1000004" OR "1000006")
+| eval phase=case(
+    like(_raw,"%1000002%"),"3_BruteForce",
+    like(_raw,"%1000004%"),"2_SQLi",
+    like(_raw,"%1000006%"),"4_Webshell")
+| append [search index=idx_web "cmd=" | eval phase="5_InternalRecon"]
+| append [search index=idx_db | eval phase="6_DB_Access"]
+| append [search index=pfsense "10.0.10.80" "10.50.50.30" "filterlog" | eval phase="7_Exfil_Attempt"]
+| timechart span=5m count by phase
+```
+
+> Visualization: **Column Chart** — Snort + Apache + MySQL + filterlog 4개 소스 통합
+
+**실제 결과 (2026-08-26 KST, 422 이벤트):**
+```
+시각 (KST)     | 공격 단계            | 설명
+14:00~15:00    | 2_SQLi              | sqlmap UNION SELECT 시도
+14:00~15:00    | 3_BruteForce        | hydra wp-login.php 브루트포스
+16:00~17:00    | 4_Webshell          | 웹쉘 접근 (Snort SID 1000006)
+16:00~17:00    | 5_InternalRecon     | 웹쉘 cmd= 명령 실행 (whoami, id, ip addr 등)
+17:00~18:30    | 6_DB_Access         | MySQL 쿼리 실행 (SHOW TABLES, SELECT wp_users 등) — 최다 이벤트
+17:00~18:30    | 7_Exfil_Attempt     | curl exfil 시도 → 방화벽 차단
+```
+> **핵심:** Snort 경보만으로는 4단계까지만 보이던 킬체인이, 다중 로그 소스 통합으로 **7단계 전체 공격 흐름이 가시화**됨.
+> 이것이 SIEM 상관분석의 핵심 가치 — 단일 장비로는 불가능한 **End-to-End 킬체인 재구성**.
+
 ---
 
 #### 상관분석 5. DB 접근 이상 탐지
