@@ -236,14 +236,14 @@ Kali   (10.50.50.30) ─┘                                  │
 - [x] Splunk Alert 설정 (브루트포스, 스캐너, SQLi, 웹쉘, WAF 급증 — Phase 3 실제 탐지 데이터 기반)
 
 **관제 대응**
-- [ ] 관제 대응 프로세스 실행 (경보분류→분석→대응→검증)
-  - [ ] 킬체인 공격 실시간 대응 (Kali 공격 ↔ mng-mint 관제)
-  - [ ] 정탐/오탐 판별 (정상 트래픽 vs 공격 트래픽 구분)
-- [ ] 차단 검증 — 단계별 차단 후 재공격 시도
-- [ ] MITRE ATT&CK 매핑 + 킬체인 분석 다이어그램
+- [x] 관제 대응 프로세스 실행 (경보분류→분석→대응→검증)
+  - [x] 킬체인 공격 실시간 대응 (Kali 공격 ↔ mng-mint 관제, 2026-08-27 18:49~19:40)
+  - [x] 정탐/오탐 판별 (정상 트래픽 vs 공격 트래픽 구분)
+- [x] 차단 검증 — pfSense WAN Block 룰(10.50.50.30) 후 재공격 → curl 타임아웃 + WPScan Aborted 확인
+- [x] MITRE ATT&CK 매핑 + 킬체인 분석 다이어그램 (7단계 중 5단계 완전탐지, 1단계 부분탐지, 1단계 차단)
 
 **보고**
-- [ ] 관제 일지 작성 (INC-xxx 양식, `phase4-soc/incident-log.md`)
+- [x] 관제 일지 작성 (INC-001~INC-006, `phase4-soc/incident-log.md`)
 - [ ] 최종 보고서 작성
   - [ ] Executive Summary (경영진용)
   - [ ] 공격 분석 + 탐지 현황 + 대응 조치 + 개선 권고
@@ -291,6 +291,6 @@ project/
 | 환경 확장 설계서 | `프로젝트-확장방향.md` | **완료** |
 | 환경 구축 스크립트·설정 | `phase2.5-setup/` | **진행 중** (WP+MySQL+WAF+rsyslog 완료, 인덱스·필드추출 미완) |
 | 킬체인 공격 기록 | `phase3-killchain/README.md` | **완료** (7단계 킬체인 + 탐지 엔지니어링) |
-| SOC 대시보드 + Alert | `phase4-soc/README.md` | **진행 중** (대시보드 7패널 + Alert 5개 완료) |
-| 관제 일지 | `phase4-soc/incident-log.md` | 미시작 |
+| SOC 대시보드 + Alert + 관제 대응 | `phase4-soc/README.md` | **완료** (대시보드 7패널 + Alert 5개 + 킬체인 대응 + MITRE 매핑) |
+| 관제 일지 | `phase4-soc/incident-log.md` | **완료** (INC-001~INC-006) |
 | 최종 보고서 | `phase4-soc/` | 미시작 |

@@ -95,20 +95,59 @@ Phase 3 실제 탐지 데이터를 근거로 Alert 쿼리 및 임계값 설정:
 
 ## Step 3. 관제 대응 실행
 
-### 시나리오 A: 킬체인 공격 실시간 대응
+### 시나리오 A: 킬체인 공격 실시간 대응 ✅
 
-Phase 3에서 수행한 킬체인 공격을 **관제자 관점에서 재실행**:
-1. Kali에서 공격 수행 (Phase 3 시나리오)
-2. mng-mint에서 Splunk 대시보드 모니터링
-3. 경보 발생 시 관제 일지 작성
-4. 대응 조치 실행 (IP 차단, Snort Block 등)
-5. 차단 검증
+Phase 3에서 수행한 킬체인 공격을 **관제자 관점에서 재실행** (2026-08-27 18:49~19:40 KST):
 
-### 시나리오 B: 정탐/오탐 판별
+| 단계 | 공격 도구 | 실행 시각 | Splunk Alert 트리거 | 대시보드 변화 |
+|------|----------|----------|-------------------|-------------|
+| 1. 정찰 | WPScan (`--enumerate u`) | 18:49~18:50 | (타이밍 미스매치) | alerts 패널: ET SCAN 다수, att_type 파이차트 변화 |
+| 2. 브루트포스 | hydra (rockyou.txt) | 19:16~19:18 | **Brute Force Detection** (Critical, 19:20) + **WAF Alert Surge** (Medium, 19:10/19:20) | login_history: 10.50.50.30 → 965건 |
+| 3. SQL Injection | sqlmap (`--dbs --batch`) | 19:21~19:30 | **SQL Injection Detection** (Critical, 19:35) | alerts 패널: SID 1000004 UNION SELECT 4건 |
+| 4. 웹쉘 실행 | curl (`/?cmd=id/whoami/cat+/etc/passwd`) | 19:30~19:35 | **Webshell Detection** (Medium, 19:35) + **WAF Alert Surge** (Medium, 19:30/19:40) | — |
+| 5. DB 유출 | curl 웹쉘 경유 mysql | 19:35~19:40 | (전용 Alert 미설정) | db_approach 패널: MySQL 로그 확인 |
 
-정상 트래픽(mng-mint cron)과 공격 트래픽 혼합 환경에서:
-- 동일 경보를 정상/공격으로 구분하는 판별 과정 기록
-- 판별 근거: 시간, 빈도, 페이로드 내용, 세션 패턴
+**Triggered Alerts 최종 현황 (7건):**
+
+| 시각 | Alert | Severity |
+|------|-------|----------|
+| 19:40:02 | WAF Alert Surge | Medium |
+| 19:35:01 | Webshell Detection | Medium |
+| 19:35:01 | SQL Injection Detection | Critical |
+| 19:30:03 | WAF Alert Surge | Medium |
+| 19:20:01 | WAF Alert Surge | Medium |
+| 19:20:01 | Brute Force Detection | Critical |
+| 19:10:01 | WAF Alert Surge | Medium |
+
+### 관제 대응 — 공격자 IP 차단 ✅
+
+| 항목 | 내용 |
+|------|------|
+| 조치 | pfSense Firewall → Rules → WAN에 Block 룰 추가 |
+| 차단 대상 | Source: 10.50.50.30, Protocol: TCP, Destination: Any |
+| 룰 위치 | WAN 룰 최상단 (NAT 룰보다 앞에 배치) |
+
+### 차단 검증 ✅
+
+| 검증 방법 | 결과 |
+|----------|------|
+| `curl -s --max-time 10 "http://10.0.0.254:8080/"` | 응답 없음 (타임아웃) |
+| `wpscan --url http://10.0.0.254:8080 --enumerate u` | "Scan Aborted: seems to be down (Timeout was reached)" |
+
+→ **차단 성공 확인**
+
+### 시나리오 B: 정탐/오탐 판별 ✅
+
+정상 트래픽(mng-mint cron, 10.0.50.100)과 공격 트래픽(Kali, 10.50.50.30) 혼합 환경에서 판별:
+
+| 경보 | 정탐/오탐 | 판별 근거 |
+|------|----------|----------|
+| ET SCAN (WPScan) | **정탐** | User-Agent에 "WPScan" 명시, 단시간 대량 요청 |
+| Brute Force (login_history 965건) | **정탐** | 동일 IP에서 초당 다수 POST /wp-login.php, User-Agent "Hydra" |
+| WAF Alert Surge (ModSecurity) | **정탐** | Rule 913100 security scanner 탐지, anomaly score 8점 초과 |
+| SQLi (SID 1000004) | **정탐** | UNION SELECT 페이로드 확인, sqlmap User-Agent |
+| Webshell (cmd=) | **정탐** | `/?cmd=id` 등 명령어 파라미터, 응답에 `uid=33(www-data)` |
+| login_history 10.0.50.100: 1건 | **정상** | mng-mint 관리자 정상 접속 (cron 또는 수동), 빈도/패턴 정상 |
 
 ---
 
@@ -116,25 +155,33 @@ Phase 3에서 수행한 킬체인 공격을 **관제자 관점에서 재실행**
 
 ### 공격 매핑 요약
 
-| Tactic | Technique | ID | 탐지 여부 | 탐지 소스 | 대응 |
-|--------|-----------|-----|----------|----------|------|
-| Reconnaissance | Active Scanning | T1595 | <!-- --> | <!-- --> | <!-- --> |
-| Initial Access | Exploit Public-Facing App | T1190 | <!-- --> | <!-- --> | <!-- --> |
-| Credential Access | Brute Force | T1110 | <!-- --> | <!-- --> | <!-- --> |
-| Persistence | Web Shell | T1505.003 | <!-- --> | <!-- --> | <!-- --> |
-| Discovery | Network Service Scanning | T1046 | <!-- --> | <!-- --> | <!-- --> |
-| Collection | Data from Information Repos | T1213 | <!-- --> | <!-- --> | <!-- --> |
-| Exfiltration | Over C2 Channel | T1041 | <!-- --> | <!-- --> | <!-- --> |
+| Tactic | Technique | ID | 탐지 여부 | 탐지 소스 | Alert 트리거 | 대응 |
+|--------|-----------|-----|----------|----------|-------------|------|
+| Reconnaissance | Active Scanning | T1595 | **탐지** | Snort ET SCAN (WPScan User-Agent) | Scanner Detection (타이밍 미스매치) | 모니터링 |
+| Initial Access | Exploit Public-Facing App | T1190 | **탐지** | Snort SID 1000004 (UNION SELECT) 4건 | **SQL Injection Detection** (Critical) | IP 차단 |
+| Credential Access | Brute Force | T1110 | **탐지** | Apache 로그 (965건) + ModSecurity Rule 913100/949110 | **Brute Force Detection** (Critical) + **WAF Alert Surge** | IP 차단 |
+| Persistence | Web Shell | T1505.003 | **탐지** | Apache 로그 (`cmd=` 파라미터) + ModSecurity anomaly | **Webshell Detection** (Medium) + **WAF Alert Surge** | 웹쉘 제거 + IP 차단 |
+| Discovery | Network Service Scanning | T1046 | **탐지** | 웹쉘 경유 (`ip addr`, `hostname`) — Apache 로그에 cmd= 기록 | Webshell Detection에 포함 | IP 차단 |
+| Collection | Data from Information Repos | T1213 | **부분 탐지** | 웹쉘 경유 mysql 명령 — Apache 로그에 cmd= 기록. DB 접근 자체는 정상 경로와 구분 불가 | (전용 Alert 미설정) | DB 비밀번호 변경 |
+| Exfiltration | Over C2 Channel | T1041 | **차단** | DMZ 아웃바운드 차단 규칙 (Phase 2 설정) | — | 네트워크 차단 (연결 거부) |
 
 ### 킬체인 분석 다이어그램
 
 ```
 정찰(T1595) → 침투(T1190) → 인증(T1110) → 지속성(T1505) → 내부정찰(T1046) → DB접근(T1213) → 유출(T1041)
     ↑              ↑              ↑              ↑              ↑              ↑            ↑
-  wpscan        sqlmap          hydra         웹쉘 업로드      nmap          mysql         curl
+  wpscan        sqlmap          hydra        웹쉘(hello.php)  cmd=ip+addr    cmd=mysql     curl→외부
     ↓              ↓              ↓              ↓              ↓              ↓            ↓
- [탐지여부]    [탐지여부]     [탐지여부]     [탐지여부]     [탐지여부]     [탐지여부]    [차단확인]
+ [탐지 ✅]     [탐지 ✅]      [탐지 ✅]      [탐지 ✅]      [탐지 ✅]     [부분탐지 ⚠]  [차단 ✅]
+ ET SCAN      SID 1000004    965건+WAF     cmd= Alert     cmd= Alert    정상경로혼재   DMZ차단
 ```
+
+### 탐지 커버리지 요약
+
+- **완전 탐지**: 5/7 단계 (정찰, SQLi, 브루트포스, 웹쉘, 내부정찰)
+- **부분 탐지**: 1/7 단계 (DB 접근 — 웹쉘 cmd= 로그에서 간접 확인 가능하나, 정상 DB 쿼리와 구분 어려움)
+- **차단 성공**: 1/7 단계 (유출 시도 — DMZ 아웃바운드 차단으로 연결 거부)
+- **Alert 트리거**: Brute Force Detection, SQL Injection Detection, Webshell Detection, WAF Alert Surge (4/5 Alert 트리거 확인)
 
 ---
 
