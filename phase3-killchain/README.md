@@ -775,13 +775,18 @@ index=pfsense ("1000001" OR "1000002" OR "1000004" OR "1000006")
 | sort -risk_score
 ```
 
-**예상 결과:**
+**실제 결과 (2,001 이벤트):**
 ```
-host          | 위험 점수 | 이벤트 수 | 공격 단계
-10.0.100.1    | 2,150+    | 2,001     | WPScan(1,973×1) + BruteForce(8×3) + SQLi(3×5) + Webshell(17×8)
+host          | risk_score | event_count | attack_phases
+10.0.100.1    | 2,148      | 2,001       | BruteForce, SQLi, WPScan, Webshell
 ```
+> **점수 산출:** WPScan(1,973×1=1,973) + BruteForce(8×3=24) + SQLi(3×5=15) + Webshell(17×8=136) = **2,148점**
+>
 > 점수 가중치: WPScan=1(정찰), BruteForce=3(침투시도), SQLi=5(취약점공격), Webshell=8(실행/C2)
-> 실제 점수는 Splunk에서 실행 후 확인.
+>
+> **분석:** 단일 호스트(10.0.100.1=pfSense WAN)에서 4개 공격 단계가 모두 탐지됨.
+> 위험 점수 2,148은 대량 정찰(WPScan)이 기본 점수를 높이지만, **실질적 위험은 Webshell(136점)과 BruteForce(24점)에 집중**.
+> WPScan 제외 시 순수 공격 점수는 175점(24+15+136).
 
 ---
 
