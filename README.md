@@ -244,10 +244,13 @@ Kali   (10.50.50.30) ─┘                                  │
 
 **보고**
 - [x] 관제 일지 작성 (INC-001~INC-006, `phase4-soc/incident-log.md`)
-- [ ] 최종 보고서 작성
-  - [ ] Executive Summary (경영진용)
-  - [ ] 공격 분석 + 탐지 현황 + 대응 조치 + 개선 권고
-  - [ ] 부록: IOC 목록, Splunk 쿼리 모음
+- [x] 최종 보고서 작성 (`phase4-soc/final-report.md`)
+  - [x] Executive Summary (경영진용)
+  - [x] 공격 분석 (킬체인 7단계 + MITRE ATT&CK 매핑)
+  - [x] 탐지 현황 (Alert 7건 트리거, 탐지 커버리지 5/7)
+  - [x] 대응 조치 (IP 차단 + 검증) + 개선 권고 (6-1~6-3)
+  - [x] 부록: IOC 목록, Splunk 쿼리 모음, 관제 일지 요약
+  - [x] SOC 분석가 사고 확장 (STRIDE/PASTA, IP 평판, EDR 연계, AI 활용)
 
 ---
 
@@ -293,4 +296,4 @@ project/
 | 킬체인 공격 기록 | `phase3-killchain/README.md` | **완료** (7단계 킬체인 + 탐지 엔지니어링) |
 | SOC 대시보드 + Alert + 관제 대응 | `phase4-soc/README.md` | **완료** (대시보드 7패널 + Alert 5개 + 킬체인 대응 + MITRE 매핑) |
 | 관제 일지 | `phase4-soc/incident-log.md` | **완료** (INC-001~INC-006) |
-| 최종 보고서 | `phase4-soc/` | 미시작 |
+| 최종 보고서 | `phase4-soc/final-report.md` | **완료** (8장: 요약+인프라+공격+탐지+대응+개선+부록+사고확장) |
