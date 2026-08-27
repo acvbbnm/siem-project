@@ -6,30 +6,56 @@
 
 ## Step 1. 모니터링 체계 구축
 
-### Splunk 대시보드
+### Splunk 대시보드 (SOC_Monitor) ✅
 
-**대시보드 구성:**
+**대시보드 구성 (7개 패널, 3단 레이아웃):**
 
-| 패널 | 유형 | SPL 쿼리 |
-|------|------|---------|
-| 실시간 이벤트 수 | Single Value | `index=pfsense OR index=idx_web OR index=idx_waf \| stats count` |
-| 공격자 IP Top 5 | Bar Chart | `index=pfsense "Priority" \| top 5 src_ip` |
-| 공격 유형 분포 | Pie Chart | `index=pfsense "Priority" \| rex "\\[\\*\\*\\] \\[\\d+:\\d+:\\d+\\] (?P<signature>.+?) \\[" \| top 10 signature` |
-| 최근 경보 | Table | `index=pfsense "Priority" \| head 20 \| table _time src_ip dest_ip signature` |
-| WAF 탐지 현황 | Bar Chart | `index=idx_waf \| stats count by rule_id` |
-| 시간대별 추이 | Timechart | `index=pfsense OR index=idx_waf \| timechart span=1h count by index` |
-| 로그인 시도 | Table | `index=idx_web uri="/wp-login.php" method=POST \| stats count by src_ip` |
-| DB 접근 로그 | Table | `index=idx_db sourcetype=mysql:slowquery \| table _time db_user query_time` |
+**상단 — 핵심 지표:**
 
-### Splunk Alert 설정
+| 패널 | 유형 | SPL 쿼리 | 결과 |
+|------|------|---------|------|
+| events (실시간 이벤트 수) | Single Value | `index=pfsense OR index=idx_web OR index=idx_waf OR index=idx_db \| stats count` | **80,425건** |
+| time (시간대별 추이) | Line Chart | `index=pfsense OR index=idx_waf \| timechart span=1h count by index` | pfsense 추이 표시 |
+| att_type (공격 유형 분포) | Pie Chart | `index=pfsense "Priority" \| rex "\\[\\d+:\\d+:\\d+\\]\\s+(?P<signature>[^\\[]+?)\\s+\\[" \| top 10 signature` | ET POLICY, SQL Injection 등 6종 |
 
-| 알림 | 조건 | 심각도 | 액션 |
-|------|------|--------|------|
-| 포트 스캔 탐지 | 동일 src 50회 이상/5분 | High | 이메일 + 로그 |
-| 브루트포스 탐지 | wp-login POST 10회 이상/5분 | High | 이메일 + 로그 |
-| SQLi 탐지 | Snort SQL 관련 경보 5건 이상 | Critical | 이메일 + 로그 |
-| 웹쉘 의심 | .phtml/.php 업로드 접근 | Critical | 이메일 + 로그 |
-| WAF 탐지 급증 | ModSecurity 50건 이상/10분 | Medium | 로그 |
+**중단 — IP/WAF 분석:**
+
+| 패널 | 유형 | SPL 쿼리 | 결과 |
+|------|------|---------|------|
+| att_ip (공격자 IP Top5) | Bar Chart | `index=pfsense "Priority" \| rex "\\{(?P<proto>\\w+)\\}\\s+(?P<src_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)" \| top 5 src_ip` | 10.0.0.254 (NAT), 10.50.50.30 (공격자) |
+| waf (WAF 탐지 현황) | Bar Chart | `index=idx_web "ModSecurity" \| rex "id\\"(?P<rule_id>\\d+)\\"" \| stats count by rule_id` | rule_id별 분포 (idx_web에서 531건) |
+
+**하단 — 상세 로그:**
+
+| 패널 | 유형 | SPL 쿼리 | 결과 |
+|------|------|---------|------|
+| db_approach (DB 접근 로그) | Statistics Table | `index=idx_db host=mysql \| head 20 \| table _time host source _raw` | MySQL DNS resolution warning 347건 |
+| alerts (최근 경보) | Statistics Table | `index=pfsense "Priority" \| rex "\\[\\d+:\\d+:\\d+\\]\\s+(?P<signature>[^\\[]+?)\\s+\\[" \| rex "\\{(?P<proto>\\w+)\\}\\s+(?P<src_ip>\\d+\\.\\d+\\.\\d+\\.\\d+):?\\d*\\s+->\\s+(?P<dest_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)" \| head 20 \| table _time src_ip dest_ip signature` | Snort 경보 + signature 추출 |
+| login_history (로그인 시도) | Statistics Table | `index=idx_web "wp-login" \| rex "client\\s+(?P<src_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)" \| stats count by src_ip` | 10.50.50.30: 255건 (공격), 10.0.50.100: 1건 (정상) |
+
+> **참고:** idx_waf 인덱스는 비어있음 (0건). ModSecurity WAF 로그는 idx_web에 혼합 수집됨 (rsyslog 경유, sourcetype=syslog).
+> 대시보드에서 WAF 패널은 `index=idx_web "ModSecurity"` 기반으로 구성.
+
+---
+
+### Splunk Alert 설정 (5개) ✅
+
+Phase 3 실제 탐지 데이터를 근거로 Alert 쿼리 및 임계값 설정:
+
+| Alert 이름 | SPL 쿼리 | Cron | Time Range | Severity | 근거 (Phase 3 실제 탐지) |
+|-----------|---------|------|------------|----------|----------------------|
+| Brute Force Detection | `index=idx_web "wp-login.php" "POST" \| stats count \| where count >= 10` | `*/5 * * * *` | 5분 | High | 상관분석1: Apache 317건 (Snort 8건보다 탐지력 우수) |
+| Scanner Detection | `index=pfsense "1000001" \| stats count \| where count >= 10` | `*/5 * * * *` | 5분 | High | SID 1000001: WPScan 1,973건 탐지 확인 |
+| SQL Injection Detection | `index=pfsense ("SQL" OR "1000004") "Priority" \| stats count \| where count >= 2` | `*/5 * * * *` | 5분 | Critical | 상관분석2: ET 18건 + 커스텀 3건 = 21건 |
+| Webshell Detection | `index=idx_web "cmd=" \| stats count \| where count >= 1` | `*/5 * * * *` | 5분 | Critical | 상관분석3: Apache cmd= 37건 (Snort 17건보다 탐지력 우수) |
+| WAF Alert Surge | `index=idx_web "ModSecurity" \| stats count \| where count >= 30` | `*/10 * * * *` | 10분 | Medium | idx_web ModSecurity 531건 확인 |
+
+> **Alert 설계 원칙:**
+> - 브루트포스, 웹쉘은 **Apache 로그(idx_web) 기반** — Snort에서 놓치는 행위까지 탐지
+> - SQLi, 스캐너는 **Snort 경보(pfsense) 기반** — 네트워크 레벨 시그니처 탐지
+> - WAF는 **idx_web 내 ModSecurity 로그** — idx_waf 인덱스 비어있어 idx_web에서 탐지
+> - 임계값은 Phase 3 킬체인 공격 실제 탐지 건수 기준으로 설정
+> - 모든 Alert Action: Log Event (Splunk 내부 기록)
 
 ---
 
@@ -134,7 +160,7 @@ Phase 3에서 수행한 킬체인 공격을 **관제자 관점에서 재실행**
 
 ## 스크린샷
 
-- [ ] Splunk 대시보드 전체 화면
+- [x] Splunk 대시보드 전체 화면 (SOC_Monitor, 7패널 3단 레이아웃)
 - [ ] 경보 발생 시점 대시보드
 - [ ] 관제 대응 과정 (경보→분석→차단)
 - [ ] 정탐/오탐 판별 근거 화면

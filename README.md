@@ -232,8 +232,8 @@ Kali   (10.50.50.30) ─┘                                  │
 ### Phase 4. 관제 운영 (SOC 시뮬레이션)
 
 **모니터링 체계 구축**
-- [ ] Splunk 대시보드 구축 (8개 패널: 이벤트 수, IP Top5, 공격 분포, 경보 목록, WAF, 시간추이, 로그인, DB접근)
-- [ ] Splunk Alert 설정 (포트스캔, 브루트포스, SQLi, 웹쉘, WAF 급증)
+- [x] Splunk 대시보드 구축 (SOC_Monitor, 7개 패널 3단 레이아웃: events, time, att_type, att_ip, waf, alerts, db_approach, login_history)
+- [x] Splunk Alert 설정 (브루트포스, 스캐너, SQLi, 웹쉘, WAF 급증 — Phase 3 실제 탐지 데이터 기반)
 
 **관제 대응**
 - [ ] 관제 대응 프로세스 실행 (경보분류→분석→대응→검증)
@@ -290,6 +290,7 @@ project/
 | Splunk 분석 + 방화벽 정책 | `phase2-detect/README.md` | **완료** (1차·2차·3차 대응) |
 | 환경 확장 설계서 | `프로젝트-확장방향.md` | **완료** |
 | 환경 구축 스크립트·설정 | `phase2.5-setup/` | **진행 중** (WP+MySQL+WAF+rsyslog 완료, 인덱스·필드추출 미완) |
-| 킬체인 공격 기록 | `phase3-killchain/README.md` | 미시작 |
+| 킬체인 공격 기록 | `phase3-killchain/README.md` | **완료** (7단계 킬체인 + 탐지 엔지니어링) |
+| SOC 대시보드 + Alert | `phase4-soc/README.md` | **진행 중** (대시보드 7패널 + Alert 5개 완료) |
 | 관제 일지 | `phase4-soc/incident-log.md` | 미시작 |
 | 최종 보고서 | `phase4-soc/` | 미시작 |
