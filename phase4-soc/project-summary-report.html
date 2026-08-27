@@ -680,11 +680,17 @@ http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+word
 <table>
   <tr><th>Alert</th><th>Severity</th><th>쿼리</th><th>주기</th><th>트리거 결과</th></tr>
   <tr><td><strong>Brute Force Detection</strong></td><td>Critical</td><td><code>index=idx_web "wp-login.php" "POST" | stats count | where count >= 10</code></td><td>*/5분</td><td>19:20 트리거</td></tr>
-  <tr><td><strong>Scanner Detection</strong></td><td>High</td><td><code>index=pfsense "1000001" | stats count | where count >= 10</code></td><td>*/5분</td><td>타이밍 미스매치</td></tr>
+  <tr><td><strong>Scanner Detection</strong></td><td>High</td><td><code>index=pfsense "1000001" | stats count | where count >= 10</code></td><td>*/5분 → <strong>*/1분</strong></td><td>타이밍 미스매치 → 주기 단축 조치</td></tr>
   <tr><td><strong>SQL Injection Detection</strong></td><td>Critical</td><td><code>index=pfsense ("SQL" OR "1000004") "Priority" | stats count | where count >= 2</code></td><td>*/5분</td><td>19:35 트리거</td></tr>
   <tr><td><strong>Webshell Detection</strong></td><td>Critical</td><td><code>index=idx_web "cmd=" | stats count | where count >= 1</code></td><td>*/5분</td><td>19:35 트리거</td></tr>
   <tr><td><strong>WAF Alert Surge</strong></td><td>Medium</td><td><code>index=idx_web "ModSecurity" | stats count | where count >= 30</code></td><td>*/10분</td><td>19:10, 19:20, 19:30, 19:40 트리거</td></tr>
 </table>
+
+<div class="warn-box">
+  <strong>Scanner Detection 타이밍 미스매치 원인 분석 및 조치:</strong><br>
+  WPScan 정찰(18:49~18:50 KST)이 수행되었으나, Scanner Detection Alert가 Splunk Triggered Alerts에 즉시 표시되지 않았다. 원인은 Splunk 스케줄러의 <strong>Cron 주기(<code>*/5분</code>)와 공격 발생 시점 사이의 대기 지연(Scheduling Latency)</strong>이다. 공격 이벤트가 인덱싱된 시점과 다음 Cron 실행 시점 사이에 최대 5분의 공백이 발생하여, 경보가 후속 공격(브루트포스) 시점 이후에야 트리거되었다.<br><br>
+  <strong>개선 조치:</strong> 정찰/스캔 공격은 킬체인 첫 단계로 후속 공격의 전조 신호이므로, 실시간 탐지가 필수적이다. Scanner Detection Alert의 스케줄링 주기를 <code>*/5분</code>에서 <strong><code>*/1분</code></strong>으로 단축하여 탐지 지연을 최소화하고, 초기 정찰 단계에서 즉각적인 L1 모니터링 전환이 가능하도록 개선하였다.
+</div>
 
 <h2 class="section">4-4. SOC 대시보드 (SOC_Monitor)</h2>
 
@@ -884,9 +890,25 @@ http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+word
 
 <ul>
   <li><strong>완전 탐지 (5/7):</strong> 정찰, SQLi, 브루트포스, 웹쉘, 내부정찰 — Snort + Apache 로그 + ModSecurity로 탐지</li>
-  <li><strong>부분 탐지 (1/7):</strong> DB 접근 — 정상 DB 쿼리와 웹쉘 경유 쿼리를 구분할 수 없음 (MySQL Audit Plugin 필요)</li>
+  <li><strong>부분 탐지 (1/7):</strong> DB 접근 — 정상 DB 쿼리와 웹쉘 경유 쿼리를 구분할 수 없음 (상세 분석 아래)</li>
   <li><strong>네트워크 차단 (1/7):</strong> 유출 시도 — DMZ 아웃바운드 차단 정책으로 사전 차단</li>
 </ul>
+
+<div class="critical-box">
+  <strong>부분 탐지 심층 분석 — DB 접근 탐지 불가의 구조적 원인</strong>
+</div>
+
+<p>웹쉘(<code>hello.php</code>)을 통한 DB 접근이 탐지되지 않은 결정적 원인은 <strong>권한 및 세션의 동질성</strong>이다.</p>
+
+<p>웹쉘은 Apache 웹 서버 프로세스 권한(<code>www-data</code>) 위에서 동작하며, DB 접근 시에도 정상 WordPress 소스코드와 동일한 <code>wp-config.php</code> 내부의 평문 인증정보(<code>wp_admin / WpAdmin!2024</code>)를 그대로 도용한다. 결과적으로 MySQL 서버 입장에서는 정상 웹 애플리케이션의 쿼리와 웹쉘 경유 쿼리가 <strong>동일한 출발지 IP(10.0.10.80), 동일한 계정(wp_admin), 동일한 커넥션 경로</strong>로 인입되어, 네트워크 및 DB 커넥션 레벨에서 악성 행위를 식별하는 것이 불가능하였다.</p>
+
+<h3 class="subsection">구조적 개선 제언</h3>
+<table>
+  <tr><th>구분</th><th>개선 방안</th><th>상세</th></tr>
+  <tr><td><strong>감사 로그 고도화</strong></td><td>MySQL Audit Plugin 활성화</td><td>단순 커넥션 로깅이 아닌 <strong>실행된 SQL 쿼리 패턴</strong>을 기록. 평소 웹 애플리케이션이 수행하지 않는 테이블 전체 dump(<code>SELECT * FROM wp_users</code>) 패턴을 SIEM에서 행위 기반으로 탐지</td></tr>
+  <tr><td><strong>시스템 레벨 제어</strong></td><td><code>php.ini</code> disable_functions 설정</td><td><code>system()</code>, <code>exec()</code>, <code>passthru()</code>, <code>shell_exec()</code> 등 위험 함수를 비활성화하여 웹쉘이 OS 명령(CLI 형태의 <code>mysql</code> 직접 실행)을 수행하는 경로를 원천 봉쇄</td></tr>
+  <tr><td><strong>DB 접근 분리</strong></td><td>애플리케이션 전용 DB 계정 세분화</td><td>WordPress용 DB 계정의 권한을 최소화(필요 테이블 SELECT/INSERT/UPDATE만 허용)하고, <code>wp_users</code> 전체 조회 권한을 제거하여 웹쉘이 도용하더라도 민감 데이터 접근 차단</td></tr>
+</table>
 
 <h2 class="section">7-3. 개선 권고사항</h2>
 
@@ -1036,6 +1058,21 @@ index=idx_web "cmd=" | stats count | where count >= 1
 
 # WAF Alert Surge (Medium, */10분)
 index=idx_web "ModSecurity" | stats count | where count >= 30</code></pre>
+
+<h3 class="subsection">실무 관점 쿼리 리뷰 및 개선 방향</h3>
+
+<div class="info-box">
+  <strong>공격자 IP Top5 쿼리 — <code>rex</code> 성능 이슈</strong><br>
+  <em>현 상태:</em> <code>rex</code> 명령어로 정규표현식을 사용해 매 검색 시 src_ip를 실시간 추출하고 있다.<br>
+  <em>실무 피드백:</em> 대량 로그가 인입되는 상용 환경에서 <code>rex</code>는 검색 시점마다 CPU를 소모하는 Search-Time Extraction이므로 심각한 성능 오버헤드를 유발한다. Snort 연동 시 Splunk 앱 또는 <code>transforms.conf</code>에서 <code>src_ip</code> 필드가 인덱싱 단계에서 자동 추출(Index-Time Field Extraction)되도록 전처리 설정을 해두고, 쿼리는 <code>| top limit=5 src_ip</code>와 같이 단순 통계 함수만 사용하여 인덱싱 성능을 최적화해야 한다.
+</div>
+
+<div class="warn-box">
+  <strong>Brute Force Detection 쿼리 — 공동 오탐(False Positive) 리스크</strong><br>
+  <em>현 상태:</em> <code>stats count</code>로 전체 POST 요청 수만 집계하고 있어, IP 구분 없이 총합이 임계치(10건)를 넘으면 트리거된다.<br>
+  <em>실무 피드백:</em> 이 구조에서는 서로 다른 10명의 정상 사용자가 각각 1회 로그인 실패해도 경보가 발생하는 <strong>공동 오탐</strong>의 리스크가 있다. 반드시 <code>stats count <strong>by src_ip</strong></code> 구문을 추가하여 <strong>"특정 단일 IP"에서 임계치 이상 실패</strong>가 발생했을 때만 트리거되도록 그룹화해야 한다.<br>
+  <em>개선 쿼리:</em> <code>index=idx_web "wp-login.php" "POST" | rex "client\s+(?P&lt;src_ip&gt;\d+\.\d+\.\d+\.\d+)" | stats count by src_ip | where count >= 10</code>
+</div>
 
 <br>
 <div class="footer">
