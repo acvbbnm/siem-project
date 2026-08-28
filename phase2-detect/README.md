@@ -1,6 +1,6 @@
 # Phase 2. 탐지/분석 + 방화벽 정책
 
-> mng-mint(10.0.50.17)에서 Splunk + pfSense를 통해 분석 및 대응
+> mng-mint(10.0.50.100)에서 Splunk + pfSense를 통해 분석 및 대응
 > Phase 1의 공격이 **모두 완료된 후** 진행한다.
 
 ---

@@ -452,7 +452,7 @@
   <tr><td><strong>WAF</strong></td><td>없음</td><td>ModSecurity 2.9.3 + OWASP CRS 3.2.0</td><td>WAF 탐지 로그 기반 분석 능력 확보</td></tr>
   <tr><td><strong>로그 수집</strong></td><td>Snort syslog만</td><td>8개 소스 → Splunk 4개 인덱스</td><td>다중 소스 상관분석(SIEM 핵심 역량)</td></tr>
   <tr><td><strong>공격자</strong></td><td>att-mint (1대)</td><td>att-mint + Kali Linux (2대)</td><td>전문 공격 도구(wpscan, hydra, sqlmap) 활용</td></tr>
-  <tr><td><strong>관제 PC</strong></td><td>없음</td><td>mng-mint (10.0.50.17)</td><td>정상 유저 트래픽 생성 + 관제 업무 분리</td></tr>
+  <tr><td><strong>관제 PC</strong></td><td>없음</td><td>mng-mint (10.0.50.100)</td><td>정상 유저 트래픽 생성 + 관제 업무 분리</td></tr>
 </table>
 
 <div class="info-box">
@@ -468,7 +468,7 @@ Kali   (10.50.50.30) ─┘                                  │
                                                      │              Bee-box  (10.0.10.50)
                                                      ├─ inner-net ──→ Splunk(10.0.100.50)
                                                      │                MySQL (10.0.100.60)
-                                                     └─ mng-net ──→ mng-mint(10.0.50.17, 관제+정상유저)</div>
+                                                     └─ mng-net ──→ mng-mint(10.0.50.100, 관제+정상유저)</div>
 
 <div class="img-placeholder">
   <div class="ph-label">[그림 2-4] VirtualBox 네트워크 설정</div>
@@ -484,7 +484,7 @@ Kali   (10.50.50.30) ─┘                                  │
   <tr><td><strong>MySQL</strong></td><td>10.0.100.60</td><td>DB 서버 (Inner-net)</td><td>—</td></tr>
   <tr><td><strong>Splunk</strong></td><td>10.0.100.50</td><td>SIEM (Inner-net)</td><td>4개 인덱스, 8개 로그 소스</td></tr>
   <tr><td><strong>Kali</strong></td><td>10.50.50.30</td><td>공격자 (att-net)</td><td>—</td></tr>
-  <tr><td><strong>mng-mint</strong></td><td>10.0.50.17</td><td>관제/관리 PC</td><td>—</td></tr>
+  <tr><td><strong>mng-mint</strong></td><td>10.0.50.100</td><td>관제/관리 PC</td><td>—</td></tr>
 </table>
 
 <h3 class="subsection">로그 수집 체계 (8개 소스 → Splunk 4개 인덱스)</h3>

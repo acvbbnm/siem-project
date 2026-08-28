@@ -21,7 +21,7 @@
 | **WordPress** (웹서버) | **10.0.10.80** | dmz-net | **회사 홈페이지 (Phase 2.5~)** |
 | Ubuntu/Splunk (SIEM) | 10.0.100.50 | inner-net | 로그 수집/분석 |
 | **MySQL** (DB) | **10.0.100.60** | inner-net | **DB 서버 (Phase 2.5~)** |
-| mng-mint (관리자) | 10.0.50.17 | mng-net | 관제/관리 PC |
+| mng-mint (관리자) | 10.0.50.100 | mng-net | 관제/관리 PC |
 
 ```
 att-mint(10.50.50.17) ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort IPS)
@@ -32,7 +32,7 @@ Kali   (10.50.50.30) ─┘                                  │
                                                      ├─ inner-net ──→ Splunk  (10.0.100.50)
                                                      │                MySQL   (10.0.100.60) [Phase 2.5~]
                                                      │
-                                                     └─ mng-net ──→ mng-mint(10.0.50.17, 관제+정상유저)
+                                                     └─ mng-net ──→ mng-mint(10.0.50.100, 관제+정상유저)
 ```
 
 ---
@@ -54,7 +54,7 @@ Kali   (10.50.50.30) ─┘                                  │
   - [x] WAN/LAN/OPT1/OPT2 4개 인터페이스 할당
   - [x] 각 인터페이스 IP 설정
 - [x] mng-mint / att-mint 설치
-  - [x] mng-mint(10.0.50.17) 설치 및 mng-net 연결
+  - [x] mng-mint(10.0.50.100) 설치 및 mng-net 연결
   - [x] att-mint(10.50.50.17) 설치 및 att-net 연결
 - [x] Bee-box(bWAPP) 설치 및 DMZ 배치
   - [x] Bee-box VM 설치 (10.0.10.50)

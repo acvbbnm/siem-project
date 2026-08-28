@@ -106,7 +106,7 @@ sudo systemctl restart apache2
 **확인:**
 - [ ] att-mint에서: `curl -I http://10.0.0.254:8080` → WordPress 응답
 - [ ] WordPress에서: `mysql -h 10.0.100.60 -u wp_admin -p` → 접속 성공
-- [ ] WordPress에서: `curl http://10.0.50.17` → 차단 (아웃바운드 Block)
+- [ ] WordPress에서: `curl http://10.0.50.100` → 차단 (아웃바운드 Block)
 
 ---
 
@@ -133,7 +133,7 @@ sudo bash scripts/04-splunk-forwarder.sh
 
 ### Step ⑥ 정상 트래픽 생성 (mng-mint)
 
-**대상:** mng-mint (10.0.50.17)
+**대상:** mng-mint (10.0.50.100)
 
 ```bash
 # 스크립트 복사
@@ -149,7 +149,7 @@ bash ~/normal-traffic.sh
 ```
 
 **확인:**
-- [ ] Splunk에서 `index=idx_web src_ip=10.0.50.17` → mng-mint 정상 트래픽 확인
+- [ ] Splunk에서 `index=idx_web src_ip=10.0.50.100` → mng-mint 정상 트래픽 확인
 - [ ] 공격 트래픽과 구분되는 정상 패턴 확인
 
 ---

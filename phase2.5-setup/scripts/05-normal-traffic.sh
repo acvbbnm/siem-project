@@ -1,6 +1,6 @@
 #!/bin/bash
 # 정상 트래픽 생성 스크립트
-# 대상: mng-mint (10.0.50.17) — crontab에 등록
+# 대상: mng-mint (10.0.50.100) — crontab에 등록
 # 실행: crontab에 등록하여 자동 실행
 #   */5 * * * * /home/user/normal-traffic.sh >> /var/log/normal-traffic.log 2>&1
 
