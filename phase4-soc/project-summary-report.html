@@ -332,10 +332,8 @@
   <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;1-1. 목적 및 범위</span></div>
   <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;1-2. 핵심 성과 요약</span></div>
   <div class="toc-item chapter"><span>2. 환경 구성</span></div>
-  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-1. 초기 환경 (Phase 1~2)</span></div>
-  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-2. 환경 확장 (Phase 2.5) — 왜 확장했는가</span></div>
-  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-3. 최종 네트워크 토폴로지</span></div>
-  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-4. 자산 목록 및 로그 수집 체계</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-1. 네트워크 토폴로지</span></div>
+  <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;2-2. 자산 목록 및 로그 수집 체계</span></div>
   <div class="toc-item chapter"><span>3. 공격 수행</span></div>
   <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;3-1. Phase 1: Bee-box 기본 공격 (정찰·SQLi·XSS·명령주입)</span></div>
   <div class="toc-item"><span>&nbsp;&nbsp;&nbsp;3-2. Phase 3: WordPress 킬체인 7단계 공격</span></div>
@@ -420,62 +418,29 @@
 <!-- ==================== CHAPTER 2 ==================== -->
 <h1 class="chapter">2. 환경 구성</h1>
 
-<h2 class="section">2-1. 초기 환경 (Phase 1~2)</h2>
+<p>VirtualBox 기반 격리 환경에 9개 VM을 배치하고, 5개 네트워크 대역으로 분리하였다. 외부 공격망(att-net)에서 VyOS 라우터와 pfSense 방화벽을 거쳐 내부 DMZ·Inner-net·관리망에 접근하는 구조이다.</p>
 
-<p>초기 환경은 <strong>att-mint(공격자) → pfSense(방화벽+Snort) → Bee-box(취약 웹서버)</strong>의 단순 구조였다. 공격자가 pfSense NAT를 통해 DMZ의 Bee-box(bWAPP)에 접근하고, Snort가 네트워크 트래픽을 모니터링하는 구조이다.</p>
-
-<p>Phase 1에서 Bee-box 대상 기본 공격(정찰, SQLi, XSS, 명령주입, 브루트포스)을 수행하고 Phase 2에서 Snort 탐지 분석 및 방화벽 정책을 수립하였다.</p>
+<h2 class="section">2-1. 네트워크 토폴로지</h2>
 
 <div class="img-placeholder">
-  <div class="ph-label">[그림 2-1] VirtualBox VM 구성 화면</div>
-  <div class="ph-desc">VirtualBox Manager 화면 — 실습에 사용된 전체 VM 목록(att-mint, Kali, VyOS, pfSense, Bee-box, WordPress, MySQL, Splunk, mng-mint)과 각 VM의 설정 상태가 보이는 스크린샷</div>
+  <div class="ph-label">[그림 2-1] 네트워크 토폴로지 다이어그램</div>
+  <div class="ph-desc">전체 네트워크 구성도 — att-net(10.50.50.0/24), rf-net(10.0.0.0/24), dmz-net(10.0.10.0/24), inner-net(10.0.100.0/24), mng-net(10.0.50.0/24) 대역과 VyOS·pfSense를 중심으로 한 라우팅/NAT 구조를 보여주는 다이어그램</div>
 </div>
-
-<div class="img-placeholder">
-  <div class="ph-label">[그림 2-2] 네트워크 토폴로지 다이어그램</div>
-  <div class="ph-desc">전체 네트워크 구성도 — att-net(10.50.50.0/24), rf-net, dmz-net(10.0.10.0/24), inner-net(10.0.100.0/24), mng-net(10.0.50.0/24) 대역과 VyOS·pfSense를 중심으로 한 라우팅/NAT 구조를 보여주는 다이어그램 또는 화이트보드 캡처</div>
-</div>
-
-<div class="img-placeholder">
-  <div class="ph-label">[그림 2-3] pfSense WAN 방화벽 룰</div>
-  <div class="ph-desc">pfSense Firewall → Rules → WAN 화면 — Phase 2에서 공격자 IP(10.50.50.17) 차단 Block 룰이 적용된 상태의 방화벽 룰 목록 스크린샷</div>
-</div>
-
-<h2 class="section">2-2. 환경 확장 (Phase 2.5) — 왜 확장했는가</h2>
-
-<p>초기 환경에서 Bee-box는 의도적으로 취약하게 설계된 학습용 서버로, <strong>실제 운영 환경과 큰 차이</strong>가 있었다. 실무 SOC 관제 능력을 기르기 위해 다음과 같이 환경을 확장하였다:</p>
 
 <table>
-  <tr><th>구분</th><th>초기 환경 (Phase 1~2)</th><th>확장 환경 (Phase 2.5~)</th><th>확장 사유</th></tr>
-  <tr><td><strong>공격 대상</strong></td><td>Bee-box (bWAPP)</td><td>WordPress 7.1 + ModSecurity WAF</td><td>실제 운영되는 CMS 환경에서의 공격·탐지 실습</td></tr>
-  <tr><td><strong>DB 서버</strong></td><td>Bee-box 내장 DB</td><td>MySQL (별도 서버, Inner-net)</td><td>DB 서버 분리 → 네트워크 세그멘테이션 + 피벗 공격 시나리오</td></tr>
-  <tr><td><strong>WAF</strong></td><td>없음</td><td>ModSecurity 2.9.3 + OWASP CRS 3.2.0</td><td>WAF 탐지 로그 기반 분석 능력 확보</td></tr>
-  <tr><td><strong>로그 수집</strong></td><td>Snort syslog만</td><td>8개 소스 → Splunk 4개 인덱스</td><td>다중 소스 상관분석(SIEM 핵심 역량)</td></tr>
-  <tr><td><strong>공격자</strong></td><td>att-mint (1대)</td><td>att-mint + Kali Linux (2대)</td><td>전문 공격 도구(wpscan, hydra, sqlmap) 활용</td></tr>
-  <tr><td><strong>관제 PC</strong></td><td>없음</td><td>mng-mint (10.0.50.100)</td><td>정상 유저 트래픽 생성 + 관제 업무 분리</td></tr>
+  <tr><th>네트워크</th><th>대역</th><th>용도</th><th>소속 장비</th></tr>
+  <tr><td><strong>att-net</strong></td><td>10.50.50.0/24</td><td>외부 공격망</td><td>att-mint, Kali</td></tr>
+  <tr><td><strong>rf-net</strong></td><td>10.0.0.0/24</td><td>라우터↔방화벽 연결</td><td>VyOS, pfSense(WAN), Snort IPS</td></tr>
+  <tr><td><strong>dmz-net</strong></td><td>10.0.10.0/24</td><td>DMZ (웹 서비스)</td><td>WordPress, Bee-box</td></tr>
+  <tr><td><strong>inner-net</strong></td><td>10.0.100.0/24</td><td>내부망 (SIEM·DB)</td><td>Splunk, MySQL</td></tr>
+  <tr><td><strong>mng-net</strong></td><td>10.0.50.0/24</td><td>관리망 (SOC 관제)</td><td>mng-mint</td></tr>
 </table>
 
 <div class="info-box">
-  <strong>확장의 핵심 목적:</strong> "공격이 가능한 환경"에서 "공격을 탐지하고 대응해야 하는 환경"으로 전환. 실무 SOC에서 요구하는 다중 로그 소스 상관분석, WAF 로그 해석, 킬체인 기반 탐지 전략 수립 능력을 기르기 위함이다.
+  <strong>외부→내부 접근 경로:</strong> 공격자(att-net) → VyOS NAT → pfSense WAN(10.0.0.254) → pfSense NAT(:8080 → WordPress:80). 공격자는 pfSense NAT 포트를 통해서만 DMZ 웹 서비스에 접근 가능하며, Inner-net·mng-net에는 직접 접근 불가.
 </div>
 
-<h2 class="section">2-3. 최종 네트워크 토폴로지</h2>
-
-<div class="topology">
-att-mint(10.50.50.17) ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort IPS)
-Kali   (10.50.50.30) ─┘                                  │
-                                                     ┌─ dmz-net ──→ WordPress(10.0.10.80) + ModSecurity WAF
-                                                     │              Bee-box  (10.0.10.50)
-                                                     ├─ inner-net ──→ Splunk(10.0.100.50)
-                                                     │                MySQL (10.0.100.60)
-                                                     └─ mng-net ──→ mng-mint(10.0.50.100, 관제+정상유저)</div>
-
-<div class="img-placeholder">
-  <div class="ph-label">[그림 2-4] VirtualBox 네트워크 설정</div>
-  <div class="ph-desc">VirtualBox 호스트 네트워크 관리자 또는 VM별 네트워크 어댑터 설정 화면 — att-net, rf-net, dmz-net, inner-net, mng-net 각 내부 네트워크 설정이 보이는 스크린샷</div>
-</div>
-
-<h2 class="section">2-4. 자산 목록 및 로그 수집 체계</h2>
+<h2 class="section">2-2. 자산 목록 및 로그 수집 체계</h2>
 
 <table>
   <tr><th>자산</th><th>IP</th><th>역할</th><th>보안 솔루션</th></tr>
