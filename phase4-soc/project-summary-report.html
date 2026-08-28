@@ -752,19 +752,90 @@ http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+word
   <div class="ph-desc">Splunk Triggered Alert 중 하나(예: Brute Force Detection)를 클릭했을 때 보이는 상세 화면 — 트리거 시각, 심각도, 매칭된 이벤트 수 등이 표시된 스크린샷</div>
 </div>
 
-<h2 class="section">5-2. 정탐/오탐 판별</h2>
+<h2 class="section">5-2. 정탐/오탐 판별 체계</h2>
 
-<p>각 경보에 대해 <strong>정탐(True Positive) / 오탐(False Positive)</strong>을 판별하였다.</p>
+<h3 class="subsection">판별 프로세스 — 4단계 검증</h3>
+
+<p>경보가 트리거되었을 때 단순히 "공격이다/아니다"로 즉단하지 않고, 다음 <strong>4단계 검증 프로세스</strong>를 거쳐 정탐 여부를 판정하였다.</p>
 
 <table>
-  <tr><th>경보</th><th>판별</th><th>근거</th></tr>
-  <tr><td>ET SCAN (WPScan)</td><td><strong>정탐</strong></td><td>User-Agent "WPScan" 명시, 단시간 대량 요청</td></tr>
-  <tr><td>Brute Force 965건</td><td><strong>정탐</strong></td><td>동일 IP 초당 다수 POST, User-Agent "Hydra"</td></tr>
-  <tr><td>ModSecurity 913100</td><td><strong>정탐</strong></td><td>security scanner User-Agent 탐지</td></tr>
-  <tr><td>SID 1000004 SQLi</td><td><strong>정탐</strong></td><td>UNION SELECT 페이로드 확인</td></tr>
-  <tr><td>Webshell cmd=</td><td><strong>정탐</strong></td><td>시스템 명령 파라미터, uid=33(www-data) 응답</td></tr>
-  <tr><td>login 10.0.50.100</td><td><strong>정상</strong></td><td>mng-mint 관리자 정상 접속, 빈도 1건</td></tr>
+  <tr><th>단계</th><th>검증 항목</th><th>확인 방법</th><th>판단 기준</th></tr>
+  <tr><td><strong>1단계<br>출발지 식별</strong></td><td>Who — 누가 보냈는가</td><td>src_ip 확인 → 자산 목록 대조</td><td>내부 관리 IP(10.0.50.x)인지, 외부/공격 대역(10.50.50.x)인지 분류. 알려진 자산이면 정상 가능성 ↑, 미등록 IP면 의심 ↑</td></tr>
+  <tr><td><strong>2단계<br>행위 패턴 분석</strong></td><td>How — 어떻게 접근했는가</td><td>요청 빈도, User-Agent, 접근 경로 패턴</td><td>자동화 도구 시그니처(Hydra, WPScan, sqlmap) 존재 여부. 초당 요청 수가 사람의 조작 속도(3~5초/건)를 초과하는지. 동일 엔드포인트 반복 접근 여부</td></tr>
+  <tr><td><strong>3단계<br>페이로드 검증</strong></td><td>What — 무엇을 보냈는가</td><td>요청 본문/파라미터 확인</td><td>실제 악성 페이로드(UNION SELECT, cmd=id, ../../../etc/passwd 등) 포함 여부. 정상 업무에서 발생할 수 없는 문자열인지 확인</td></tr>
+  <tr><td><strong>4단계<br>영향도 확인</strong></td><td>결과 — 공격이 성공했는가</td><td>응답 코드, 응답 본문, 후속 행위</td><td>200 OK + 민감 정보 노출(uid=33, DB 데이터) 여부. 공격 성공 시 위험도 상향, 실패 시 "시도"로 기록</td></tr>
 </table>
+
+<h3 class="subsection">경보별 판별 적용</h3>
+
+<table>
+  <tr><th>경보</th><th>1단계 (출발지)</th><th>2단계 (행위)</th><th>3단계 (페이로드)</th><th>4단계 (영향)</th><th>판정</th></tr>
+  <tr>
+    <td><strong>ET SCAN<br>(WPScan)</strong></td>
+    <td>10.50.50.30<br>(외부 공격 대역)</td>
+    <td>4분간 1,970건 요청<br>UA: "WPScan v3.8.28"</td>
+    <td>enumerate vp,vt,u<br>플러그인·테마·사용자 열거</td>
+    <td>WP 버전, XML-RPC,<br>Upload 리스팅 노출</td>
+    <td><strong>정탐</strong></td>
+  </tr>
+  <tr>
+    <td><strong>Brute Force<br>965건</strong></td>
+    <td>10.50.50.30<br>(외부 공격 대역)</td>
+    <td>초당 다수 POST<br>UA: "Mozilla/5.0 (Hydra)"</td>
+    <td>POST /wp-login.php<br>log=admin&pwd=사전값</td>
+    <td>admin/rlaquddn1@<br>크래킹 성공</td>
+    <td><strong>정탐</strong></td>
+  </tr>
+  <tr>
+    <td><strong>ModSecurity<br>913100</strong></td>
+    <td>10.50.50.30<br>(외부 공격 대역)</td>
+    <td>security scanner<br>User-Agent 탐지</td>
+    <td>hydra, sqlmap<br>도구 시그니처</td>
+    <td>Anomaly Score 8<br>(CRITICAL 임계 초과)</td>
+    <td><strong>정탐</strong></td>
+  </tr>
+  <tr>
+    <td><strong>SID 1000004<br>SQLi</strong></td>
+    <td>10.50.50.30<br>(외부 공격 대역)</td>
+    <td>sqlmap 자동화<br>다양한 기법 시도</td>
+    <td>UNION SELECT,<br>boolean blind 페이로드</td>
+    <td>Prepared Statement<br>보호로 실패</td>
+    <td><strong>정탐</strong><br>(시도)</td>
+  </tr>
+  <tr>
+    <td><strong>Webshell<br>cmd=</strong></td>
+    <td>10.50.50.30<br>(외부 공격 대역)</td>
+    <td>/?cmd= 파라미터<br>시스템 명령 직접 전달</td>
+    <td>cmd=id, cmd=whoami<br>cmd=cat+/etc/passwd</td>
+    <td>uid=33(www-data)<br>시스템 정보 + DB 인증정보 유출</td>
+    <td><strong>정탐</strong></td>
+  </tr>
+  <tr>
+    <td><strong>login<br>10.0.50.100</strong></td>
+    <td>10.0.50.100<br>(내부 관리 대역 mng-mint)</td>
+    <td>단발 접속 1건<br>정상 브라우저 UA</td>
+    <td>일반 로그인 요청<br>악성 페이로드 없음</td>
+    <td>정상 인증 성공</td>
+    <td><strong>정상<br>(Benign)</strong></td>
+  </tr>
+</table>
+
+<h3 class="subsection">실무 확장 — 동일 경보가 오탐이 되는 상황</h3>
+
+<p>본 실습은 통제된 환경에서 의도적 공격을 수행했기 때문에 모든 경보가 정탐으로 판정되었다. 그러나 실무 SOC에서는 <strong>동일한 경보 유형이라도 상황에 따라 오탐으로 판정</strong>되는 경우가 존재한다. 분석가는 아래와 같은 오탐 시나리오를 인지하고, 위 4단계 프로세스를 통해 구분할 수 있어야 한다.</p>
+
+<table>
+  <tr><th>경보 유형</th><th>오탐 시나리오 (실무)</th><th>판별 포인트</th></tr>
+  <tr><td>Scanner Detection</td><td>자사 보안팀이 운영하는 <strong>취약점 스캐너</strong>(Qualys, Nessus, Acunetix)가 정기 점검 수행 시 User-Agent에 "scanner" 포함</td><td>1단계에서 출발지 IP가 보안팀 자산 목록에 등록되어 있는지 확인. 스캔 일정표와 대조</td></tr>
+  <tr><td>Brute Force</td><td>사내 <strong>비밀번호 변경 정책</strong> 적용일에 다수 직원이 이전 비밀번호로 로그인 실패. 또는 SSO/LDAP 연동 오류로 인증 실패 반복</td><td>2단계에서 요청 간격이 사람 속도(수 초)인지, 자동화 속도(밀리초)인지 구분. 다수 IP에서 분산 실패인지, 단일 IP 집중인지 확인</td></tr>
+  <tr><td>SQL Injection</td><td>CMS 게시판에 <strong>프로그래밍 관련 글</strong> 작성 시 "SELECT", "UNION" 등 SQL 예약어가 본문에 포함</td><td>3단계에서 해당 문자열이 HTTP 파라미터(공격)인지, POST 본문 콘텐츠(정상 글)인지 위치 확인. 요청 경로가 게시판(/wp-comments-post.php)인지 취약 엔드포인트인지 구분</td></tr>
+  <tr><td>WAF Anomaly Score</td><td><strong>API 클라이언트</strong>나 모바일 앱이 비표준 User-Agent 사용, 또는 대용량 파일 업로드 시 CRS 룰에 의해 anomaly score 누적</td><td>2단계에서 User-Agent가 자사 앱의 알려진 UA인지 확인. 요청 빈도와 패턴이 정상 API 호출 주기와 일치하는지 대조</td></tr>
+  <tr><td>Webshell (cmd=)</td><td>웹 애플리케이션이 정상적으로 <code>cmd</code> 파라미터를 사용하는 경우 (검색 필터, 명령어 도움말 페이지 등)</td><td>3단계에서 cmd 값이 시스템 명령(id, whoami, cat)인지, 애플리케이션 정상 값(search, filter)인지 페이로드 내용 확인. 4단계에서 응답에 시스템 정보 노출 여부 확인</td></tr>
+</table>
+
+<div class="info-box">
+  <strong>핵심 인사이트:</strong> 정탐/오탐 판별의 본질은 "경보가 울렸다/안 울렸다"가 아니라, <strong>"경보가 울린 이유를 역추적하여 공격 의도(Intent)와 공격 성공 여부(Impact)를 확인하는 분석 과정"</strong>이다. 동일한 시그니처라도 출발지·행위·페이로드·영향도의 조합에 따라 판정이 달라지며, 이 프로세스를 체계적으로 수행하는 것이 SOC 분석가의 핵심 역량이다.
+</div>
 
 <h2 class="section">5-3. 관제 일지 (INC-001 ~ INC-006)</h2>
 
