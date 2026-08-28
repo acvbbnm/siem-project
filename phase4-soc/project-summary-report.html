@@ -981,6 +981,88 @@ http://10.0.0.254:8080/?cmd=mysql+-u+wp_admin+-pWpAdmin!2024+-h+10.0.100.60+word
   <tr><td><strong>DB 접근 분리</strong></td><td>애플리케이션 전용 DB 계정 세분화</td><td>WordPress용 DB 계정의 권한을 최소화(필요 테이블 SELECT/INSERT/UPDATE만 허용)하고, <code>wp_users</code> 전체 조회 권한을 제거하여 웹쉘이 도용하더라도 민감 데이터 접근 차단</td></tr>
 </table>
 
+<h3 class="subsection">왜 현재 도구로는 탐지할 수 없는가</h3>
+
+<p>현재 구축된 탐지 체계(Snort IDS, Splunk SIEM, ModSecurity WAF)는 모두 <strong>네트워크 트래픽 및 애플리케이션 로그</strong> 레벨에서 동작한다. 그런데 웹쉘을 통한 DB 접근은 다음과 같은 이유로 이 레벨에서 정상 트래픽과 구별이 불가능하다.</p>
+
+<table>
+  <tr><th>탐지 도구</th><th>관찰 가능 범위</th><th>웹쉘 DB 접근이 탐지 불가한 이유</th></tr>
+  <tr><td><strong>Snort IDS</strong></td><td>네트워크 패킷 (L3~L7)</td><td>WordPress ↔ MySQL 간 3306 트래픽은 정상이든 웹쉘이든 <strong>동일한 출발지(10.0.10.80), 동일한 포트, 동일한 프로토콜</strong>. Snort 룰로 쿼리 내용 구분하려면 MySQL 프로토콜 디코딩이 필요하나, 비표준이며 암호화 시 불가</td></tr>
+  <tr><td><strong>Splunk SIEM</strong></td><td>수집된 로그 (Apache, pfSense 등)</td><td>Apache access.log에는 <code>/?cmd=mysql...</code> 형태로 요청이 기록되나, <strong>DB 쿼리 결과나 접근 성공 여부</strong>는 기록되지 않음. MySQL 로그가 미수집 상태</td></tr>
+  <tr><td><strong>ModSecurity WAF</strong></td><td>HTTP 요청/응답 (L7)</td><td>WAF는 HTTP 레이어만 검사. 웹쉘이 <strong>서버 내부에서 DB에 접근</strong>하는 행위는 HTTP 요청이 아니므로 WAF 관찰 범위 밖</td></tr>
+</table>
+
+<div class="info-box">
+  <strong>핵심 — 관찰 지점의 한계</strong><br>
+  모든 현재 도구는 "네트워크를 지나가는 트래픽"을 본다. 그러나 웹쉘→DB 접근은 <strong>서버 내부에서 발생하는 프로세스 실행</strong>이므로, 네트워크 관찰로는 원천적으로 탐지 불가능하다. 이것이 <strong>엔드포인트 레벨 탐지(EDR)</strong>가 필요한 근본적 이유이다.
+</div>
+
+<h3 class="subsection">EDR이 탐지할 수 있는 이유 — 프로세스 체인 분석</h3>
+
+<p>EDR(Endpoint Detection and Response)은 <strong>서버 엔드포인트에서 프로세스 실행을 실시간 모니터링</strong>한다. 정상 WordPress와 웹쉘의 DB 접근은 프로세스 트리 구조가 완전히 다르며, EDR은 이 차이를 탐지한다.</p>
+
+<table>
+  <tr><th></th><th>정상 WordPress DB 접근</th><th>웹쉘 경유 DB 접근</th></tr>
+  <tr>
+    <td><strong>프로세스 체인</strong></td>
+    <td><code>apache2</code> → <code>php-fpm</code> → <code>mysqli_query()</code><br>(인프로세스 라이브러리 호출, 자식 프로세스 없음)</td>
+    <td><code>apache2</code> → <code>php-fpm</code> → <code>system()</code> → <code>/bin/sh</code> → <code>mysql CLI</code><br>(자식 프로세스 생성 = <strong>비정상</strong>)</td>
+  </tr>
+  <tr>
+    <td><strong>실행 방식</strong></td>
+    <td>PHP의 <code>mysqli</code> 확장으로 DB 드라이버를 <strong>라이브러리로 직접 호출</strong> — 별도 프로세스 생성 없음</td>
+    <td><code>system("mysql -u wp_admin -p... -e 'SELECT * FROM wp_users'")</code>로 <strong>외부 CLI 프로그램을 실행</strong></td>
+  </tr>
+  <tr>
+    <td><strong>EDR 관점</strong></td>
+    <td>apache2 자식으로 php-fpm만 존재 → <span style="color:#27ae60;font-weight:bold;">정상 프로세스 트리</span></td>
+    <td>php-fpm이 <code>/bin/sh</code>를 spawn → <span style="color:#e74c3c;font-weight:bold;">비정상 프로세스 트리 경보</span></td>
+  </tr>
+</table>
+
+<div class="warn-box">
+  <strong>EDR 탐지 룰 예시</strong><br>
+  <code>parent_process = "php-fpm" AND child_process IN ("sh", "bash", "mysql", "mysqldump")</code><br>
+  → 웹 서버 프로세스가 쉘이나 DB CLI를 자식으로 생성하면 즉시 경보. 정상 WordPress 운영에서는 <strong>절대 발생하지 않는 패턴</strong>이므로 오탐률이 매우 낮다.
+</div>
+
+<h3 class="subsection">탐지 체계 개선 로드맵</h3>
+
+<p>현재 상태에서 완전한 킬체인 커버리지까지의 개선 과정을 단계별로 제시한다.</p>
+
+<table>
+  <tr><th>단계</th><th>조치</th><th>탐지 범위 변화</th><th>한계</th></tr>
+  <tr>
+    <td><strong>현재 상태</strong><br><span style="color:#e74c3c;">부분 탐지</span></td>
+    <td>Snort + Splunk + ModSecurity<br>(네트워크/로그 기반)</td>
+    <td>킬체인 7단계 중 <strong>5단계 완전 탐지</strong>, 1단계 부분 탐지, 1단계 차단</td>
+    <td>서버 내부 행위(프로세스 실행, 파일 변경) 관찰 불가. DB 접근 정상/비정상 구분 불가</td>
+  </tr>
+  <tr>
+    <td><strong>Phase 1</strong><br><span style="color:#f39c12;">로그 고도화</span></td>
+    <td>① MySQL Audit Plugin 활성화<br>② php.ini <code>disable_functions</code> 설정<br>③ DB 계정 권한 세분화</td>
+    <td>비정상 쿼리 패턴(<code>SELECT * FROM wp_users</code>) 사후 탐지 가능. 위험 PHP 함수 차단으로 웹쉘 CLI 실행 경로 봉쇄</td>
+    <td>사후 분석 위주(실시간 차단 아님). <code>disable_functions</code> 우회 기법 존재. 이미 삽입된 웹쉘에 대한 탐지 능력 부족</td>
+  </tr>
+  <tr>
+    <td><strong>Phase 2</strong><br><span style="color:#27ae60;">EDR 도입</span></td>
+    <td>④ EDR 에이전트 배포 (WordPress 서버)<br>⑤ 프로세스 체인 모니터링 룰 설정<br>⑥ 파일 무결성 모니터링 (FIM)</td>
+    <td><strong>실시간</strong> 비정상 프로세스 탐지: php → sh/mysql 경보. 웹쉘 파일 생성/변경 즉시 탐지. 자동 엔드포인트 격리 가능</td>
+    <td>에이전트 리소스 오버헤드. 초기 베이스라인 학습 기간 필요</td>
+  </tr>
+  <tr>
+    <td><strong>목표 상태</strong><br><span style="color:#27ae60;">완전 커버리지</span></td>
+    <td>네트워크(Snort/WAF) + 로그(Splunk/MySQL Audit) + 엔드포인트(EDR) 통합</td>
+    <td>킬체인 <strong>전 단계 실시간 탐지</strong>. 네트워크 우회 공격도 엔드포인트에서 포착. SOAR 연계 시 탐지→격리→통보 자동화</td>
+    <td>—</td>
+  </tr>
+</table>
+
+<div class="info-box">
+  <strong>Defence-in-Depth 원칙 적용</strong><br>
+  단일 레이어(네트워크)에 의존하면 해당 레이어에서 구분 불가능한 공격은 무조건 통과한다. <strong>네트워크 + 로그 + 엔드포인트</strong>의 다층 방어를 구축해야 하며, 이 실습의 "DB 접근 부분 탐지"는 그 필요성을 증명하는 실제 사례이다. (→ 8-3절 EDR 연계 상세 참조)
+</div>
+
 <h2 class="section">7-3. 개선 권고사항</h2>
 
 <h3 class="subsection">탐지 개선 (높음)</h3>
