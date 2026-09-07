@@ -26,7 +26,7 @@
 │  1. 인프라    │───→│  2. 보안 솔루션│───→│  3. 공격      │───→│  4. 탐지      │───→│  5. 관제·대응 │
 │     설계·구축  │    │     배치·설정  │    │     시뮬레이션  │    │     엔지니어링  │    │     ·검증     │
 └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
-  네트워크 5개 존      Snort IPS           Bee-box 7종 공격    커스텀 룰 9개        대시보드 7패널
+  네트워크 5개 존      Snort IPS           Bee-box 7종 공격    커스텀 룰 9개        대시보드 8패널
   방화벽 정책 설계     ModSecurity WAF     킬체인 7단계 공격    Splunk Alert 5개    실시간 모니터링
   자산 배치           Splunk SIEM         MITRE ATT&CK 매핑   상관분석 쿼리        차단·검증 수행
 ```
@@ -34,7 +34,7 @@
 ### 1-3. 핵심 성과 요약
 
 - 7단계 킬체인 공격 중 **5단계에서 공격 시도를 탐지**(Alert 트리거 또는 로그 기록), 1단계 부분 탐지(DB 접근), 1단계 외부 전송 실패 확인
-- Splunk Alert 5종 설계 → **4종 정상 트리거** 확인 (Scanner Detection은 cron 주기 미스매치로 미표시)
+- Splunk Alert 5종 설계 → **4종 정상 트리거** 확인 (Scanner Detection은 발생 미확인 (원인 미확정))
 - 공격자 IP 차단 후 재공격 시 **접근 차단** 검증 (curl 타임아웃, WPScan Aborted)
 - 데이터 유출 시도 시 **외부 전송 실패** 확인 (Connection refused — 원인: 방화벽 아웃바운드 차단 또는 수신 서비스 미존재, 방화벽 로그 추가 확인 필요)
 - 탐지 한계 분석 및 **7건의 개선 권고** 도출
@@ -103,7 +103,7 @@
 | 로그 소스 | Snort + filterlog (2개) | **8개** (Snort, filterlog, Apache×2, ModSec, WP auth, MySQL×2) |
 | 트래픽 | 공격만 | 공격 + **정상 트래픽** 혼합 |
 | 탐지 | 기본 Snort 룰셋 | 커스텀 Snort 룰 9개 + Splunk Alert 5개 + 상관분석 |
-| 관제 | 없음 | **SOC 대시보드** 7패널 + 관제 일지 |
+| 관제 | 없음 | **SOC 대시보드** 8패널 + 관제 일지 |
 
 ### 2-1. 네트워크 토폴로지
 
@@ -165,15 +165,15 @@ Kali   (10.50.50.30) ─┘                                  │
 
 | 구분 | 공격 유형 | 도구 | Snort 탐지 | 비고 |
 |------|----------|------|-----------|------|
-| R-1 | TCP 포트스캔 | nmap -sT | ✅ sfPortscan | [그림 3-1] |
+| R-1 | TCP 포트스캔 | nmap -sS | ✅ sfPortscan | [그림 3-1] |
 | E-1 | SQL Injection (수동) | 브라우저 | ✅ 4건 | |
 | E-2 | SQL Injection (자동) | sqlmap | ✅ 211건 | |
 | E-3 | Reflected XSS | 브라우저 | ✅ 3건 | |
-| E-4 | Stored XSS | 브라우저 | ❌ 미탐지 | IPS 한계 — 시그니처 기반으로 저장형 XSS 탐지 불가 |
+| E-4 | Stored XSS | 브라우저 | ❌ 미탐지 | 해당 실습의 룰·설정에서 탐지되지 않음 |
 | E-5 | OS Command Injection | 브라우저 | ⚠️ 1건 | 응답 측만 탐지 (ATTACK_RESPONSE) [그림 3-2] |
-| E-7 | 브루트포스 | hydra | ✅ 8건 | [그림 3-3] |
+| E-7 | 브루트포스 | hydra 시도 후 수동 | ❌ 미탐지 | NAT 리다이렉트로 자동화 실패, 수동 로그인 성공. WordPress 경보 8건과 별개 |
 
-**핵심 발견**: Snort는 시그니처 기반으로 네트워크 패킷을 검사하므로, 저장형 XSS(E-4)처럼 정상 HTTP 요청 안에 포함된 공격은 탐지하지 못함 → **다중 탐지 소스(WAF, 애플리케이션 로그)의 필요성** 확인 [그림 3-4]
+**핵심 발견**: 이번 실습에서 적용한 Snort 룰·설정은 저장형 XSS(E-4)를 탐지하지 못함 → **다중 탐지 소스(WAF, 애플리케이션 로그)의 필요성** 확인 [그림 3-4]
 
 ### 3-2. WordPress 킬체인 7단계 공격 (Phase 3)
 
@@ -184,7 +184,7 @@ Kali   (10.50.50.30) ─┘                                  │
 | 1 | 정찰 | T1595 Active Scanning | WPScan | WP 7.1 식별, XML-RPC 활성화, Upload 디렉토리 리스팅 노출 [그림 3-5] |
 | 2 | 초기 침투 시도 | T1190 Exploit Public-Facing App | sqlmap | SQLi 실패 (WP 코어 Prepared Statement 보호) — 공격 시도 자체가 로그에 기록 |
 | 3 | 인증 공격 | T1110 Brute Force | hydra | admin/rlaquddn1@ 크래킹 성공 (POST 965건 기록) [그림 3-6] |
-| 4 | 지속성 확보 | T1505.003 Web Shell | WP File Manager 6.9 | hello.php에 PHP 웹쉘 삽입, `/?cmd=` 경로로 명령 실행 [그림 3-7] |
+| 4 | 지속성 확보 | T1505.003 Web Shell | WP File Manager 8.0.4 (관리자 편집 경로) | hello.php에 PHP 웹쉘 삽입, `/?cmd=` 경로로 명령 실행 [그림 3-7] |
 | 5 | 내부 정찰 | T1046 Network Service Scan | 웹쉘 CLI | DMZ IP(10.0.10.80), DB 인증정보(wp_admin/WpAdmin!2024) 획득 [그림 3-8] |
 | 6 | DB 접근 | T1213 Data from Info Repos | mysql (웹쉘 경유) | wp_users 테이블 탈취 — admin 계정 + bcrypt 해시 [그림 3-9] |
 | 7 | 유출 시도 | T1041 Exfiltration Over C2 | curl | **실패** — Connection refused 발생. 원인: DMZ 아웃바운드 차단 정책 또는 수신 서비스 미존재 (방화벽 로그 확인 필요) |
@@ -242,7 +242,7 @@ Kali   (10.50.50.30) ─┘                                  │
 
 | 킬체인 단계 | MITRE ATT&CK | 공격 시도 탐지 | 경보(Alert) 발생 | 침해 여부 확인 | 대응 |
 |------------|-------------|-------------|---------------|-------------|------|
-| 1. 정찰 | T1595 | ✅ Snort ET SCAN + pfSense SID 1000001 | ⚠️ Scanner Detection (cron 미스매치로 Triggered Alerts 미표시, Snort 경보에서 직접 확인) | — (정찰 단계) | L1 모니터링 |
+| 1. 정찰 | T1595 | ✅ Snort ET SCAN + pfSense SID 1000001 | ⚠️ Scanner Detection (Triggered Alerts 발생 미확인 (원인 미확정), Snort 경보에서 직접 확인) | — (정찰 단계) | L1 모니터링 |
 | 2. SQLi 시도 | T1190 | ✅ Snort ET SQL + pfSense SID 1000004 | ✅ SQL Injection Detection | 공격 실패 (Prepared Statement 보호) | 기록 |
 | 3. 브루트포스 | T1110 | ✅ Apache 로그 POST 965건 + ModSecurity Rule 913100 | ✅ Brute Force Detection + WAF Alert Surge | 인증 성공 (admin 크래킹) | L2 대응 |
 | 4. 웹쉘 | T1505.003 | ✅ Apache 로그 cmd= 요청 + ModSecurity | ✅ Webshell Detection + WAF Alert Surge | 명령 실행 성공 (uid=33 확인) | L3 긴급 대응 |
@@ -255,7 +255,7 @@ Kali   (10.50.50.30) ─┘                                  │
 | 기준 | 결과 | 설명 |
 |------|------|------|
 | **공격 시도 탐지** (로그 기록 또는 IPS 경보) | 5/7 단계 | 1~5단계. 6단계는 간접 탐지, 7단계는 탐지 미설정 |
-| **경보(Alert) 발생** | 4/7 단계 | 2~4단계 Alert 트리거. 1단계는 cron 미스매치로 미표시 |
+| **경보(Alert) 발생** | 5종 중 4종, 총 8회 | 2026-08-27 19:45 KST 최종 캡처 기준. 공격 단계별 커버리지와 별도로 집계 |
 | **침해 성공 확인** | 4/7 단계 | 3~6단계에서 실제 침해 발생 (인증 크래킹, 웹쉘 실행, DB 접근 성공) |
 | **외부 전송 실패** | 1/7 단계 | 7단계 curl → Connection refused (원인 미확정: 방화벽 차단 또는 수신 서비스 미존재) |
 
@@ -267,7 +267,7 @@ Kali   (10.50.50.30) ─┘                                  │
 
 ### 5-1. SOC 대시보드 구성
 
-7개 패널, 3단 레이아웃으로 실시간 관제 대시보드를 구성하였다.
+8개 패널, 3단 레이아웃으로 실시간 관제 대시보드를 구성하였다.
 
 | 패널 | 내용 | 공격 시 변화 |
 |------|------|------------|
@@ -277,6 +277,7 @@ Kali   (10.50.50.30) ─┘                                  │
 | att_ip | 공격자 IP Top5 | 10.50.50.30 최다 |
 | waf | WAF 탐지 현황 | ModSecurity Rule 949110, 913100 |
 | alerts | 최근 Snort 경보 | ET SCAN, SID 1000004 |
+| db_approach | MySQL 에러 로그 | DNS 해석 경고 347건; DB 조회 감사 로그와 구분 |
 | login_history | 로그인 시도 IP별 | 10.50.50.30: POST 965건 (로그인 시도 횟수, 실패·성공 미구분) |
 
 ### 5-2. Alert 트리거 현황
@@ -285,6 +286,7 @@ Kali   (10.50.50.30) ─┘                                  │
 
 | 시각 | Alert | Severity | 트리거 원인 |
 |------|-------|----------|-----------|
+| 19:45:00 | Webshell Detection | Medium | 최종 Triggered Alerts 캡처에서 확인; 해당 검색 결과의 상세 원인은 추가 확인 |
 | 19:40:02 | WAF Alert Surge | Medium | 웹쉘 명령 실행 → ModSecurity 탐지 |
 | 19:35:01 | Webshell Detection | Medium | `/?cmd=id`, `/?cmd=whoami` 등 |
 | 19:35:01 | SQL Injection Detection | Critical | Snort SID 1000004 UNION SELECT 4건 |
@@ -309,7 +311,7 @@ Kali   (10.50.50.30) ─┘                                  │
 | 19:24 | SQL Injection 시도 (4건) | L2→L3 에스컬레이션 | 공격 에스컬레이션 확인 |
 | 19:30 | 웹쉘 명령 실행 탐지 | L3 긴급 대응 | 침해 확인, 즉시 차단 결정 |
 | 19:35 | DB 데이터 유출 확인 | L4 긴급 대응 | 차단 실행 지시 |
-| 19:40 | pfSense WAN Block 룰 적용 | 차단 실행 | 10.50.50.30 전체 차단 |
+| 19:40 | pfSense WAN Block 룰 적용 | 차단 실행 | 10.50.50.30 TCP 접근 차단 |
 | 19:40~ | 차단 검증 | 검증 | curl 타임아웃, WPScan Aborted 확인 |
 
 ### 6-2. 차단 조치 및 검증
@@ -343,7 +345,7 @@ Kali   (10.50.50.30) ─┘                                  │
 | DMZ↔Inner-net | WordPress→MySQL 3306 허용 | DB 프록시 도입 또는 접근 제어 강화 | 중간 |
 | WordPress 보안 | wp-config.php 평문 인증정보 | 인증정보 환경변수 분리, 불필요 플러그인 제거, 2FA 적용 | 중간 |
 | 로그 인덱스 | idx_waf 비어있음 | ModSecurity 전용 인덱스 분리 수집 | 낮음 |
-| Alert 주기 | cron 타이밍 미스매치 | Real-time Alert 또는 1분 주기 전환 | 낮음 |
+| Alert 주기 | 발생 미확인 (원인 미확정) | 검색 실행 이력·시간 범위·임계값·수집 지연 확인 후 조정 | 낮음 |
 
 ---
 

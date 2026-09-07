@@ -10,10 +10,10 @@
 테크솔루션 가상 기업의 WordPress 홈페이지를 대상으로 외부 공격자의 **킬체인 7단계 공격**(정찰 → SQLi → 브루트포스 → 웹쉘 → 내부정찰 → DB 탈취 → 유출 시도)을 시뮬레이션하고, Snort IDS + ModSecurity WAF + Splunk SIEM 기반 탐지·대응 체계의 효과를 검증하였다.
 
 **핵심 결과:**
-- 7단계 중 **5단계 완전 탐지**, 1단계 부분 탐지, 1단계 네트워크 차단 성공
+- 7단계 중 **5단계 공격 시도 탐지**, 1단계 부분 탐지, 1단계 외부 전송 실패 (원인 미확정)
 - Splunk Alert 5개 중 **4개 정상 트리거** 확인
-- 공격자 IP 차단 후 재공격 시 **완전 차단** 검증
-- 데이터 유출 시도는 DMZ 아웃바운드 차단 정책에 의해 **사전 차단**
+- 공격자 IP의 TCP 차단 후 HTTP 재접속 타임아웃 확인
+- 별도 외부 전송 시도는 실패했으나 **실패 원인은 미확정**이며, 웹쉘 응답으로 DB 정보가 노출된 사실과 구분한다
 
 **주요 발견:**
 - 시그니처 기반 IDS(Snort)만으로는 행위 기반 공격(브루트포스) 탐지에 한계 → 다중 로그 소스 상관분석 필수
@@ -69,11 +69,11 @@ Kali   (10.50.50.30) ─┘                                  │
 |------|-----------|-------------|----------|------|
 | 1 | 정찰 | T1595 Active Scanning | wpscan, nmap | WP 7.1 식별, XML-RPC 활성화, Upload 디렉토리 리스팅 노출 |
 | 2 | 초기 침투 | T1190 Exploit Public-Facing App | sqlmap | SQLi 실패 (WP 코어 Prepared Statement 보호), 공격 시도 자체가 로그에 기록 |
-| 3 | 인증 공격 | T1110 Brute Force | hydra | admin/rlaquddn1@ 크래킹 성공 (965건 시도) |
+| 3 | 인증 공격 | T1110 Brute Force | hydra | admin/rlaquddn1@ 크래킹 성공 (POST 965건 기록, 성공·실패 미구분) |
 | 4 | 지속성 | T1505.003 Web Shell | WP File Manager | hello.php에 PHP 웹쉘 삽입, `/?cmd=` 경로로 명령 실행 |
 | 5 | 내부 정찰 | T1046 Network Service Scan | 웹쉘 CLI | DMZ IP(10.0.10.80), DB 인증정보(wp_admin/WpAdmin!2024) 획득 |
 | 6 | DB 접근 | T1213 Data from Info Repos | mysql (웹쉘 경유) | wp_users 테이블 탈취 (admin 계정 + bcrypt 해시) |
-| 7 | 유출 시도 | T1041 Exfiltration Over C2 | curl | Connection refused — DMZ 아웃바운드 차단으로 유출 실패 |
+| 7 | 유출 시도 | T1041 Exfiltration Over C2 | curl | Connection refused — 외부 전송 실패 (원인 미확정) |
 
 ### 3-2. MITRE ATT&CK 매핑
 
@@ -85,7 +85,7 @@ Kali   (10.50.50.30) ─┘                                  │
 | Persistence | Web Shell | T1505.003 | ✅ | Apache 로그 (cmd=) | Webshell Detection + WAF Alert Surge |
 | Discovery | Network Service Scanning | T1046 | ✅ | Apache 로그 (cmd=) | Webshell Detection에 포함 |
 | Collection | Data from Information Repos | T1213 | ⚠️ | 웹쉘 cmd= 로그 (간접) | (전용 Alert 미설정) |
-| Exfiltration | Over C2 Channel | T1041 | 🛡️ | DMZ 아웃바운드 차단 | — (네트워크 레벨 차단) |
+| Exfiltration | Over C2 Channel | T1041 | ❌ 전용 탐지 미설정 | 외부 전송 실패, 원인 미확정 | — |
 
 ---
 
@@ -93,7 +93,7 @@ Kali   (10.50.50.30) ─┘                                  │
 
 ### 4-1. SOC 대시보드 (SOC_Monitor)
 
-7개 패널, 3단 레이아웃으로 구성:
+8개 패널, 3단 레이아웃으로 구성:
 
 | 패널 | 내용 | 공격 시 변화 |
 |------|------|------------|
@@ -103,12 +103,14 @@ Kali   (10.50.50.30) ─┘                                  │
 | att_ip | 공격자 IP Top5 | 10.50.50.30 최다 |
 | waf | WAF 탐지 현황 | ModSecurity Rule 949110, 913100 등 |
 | alerts | 최근 Snort 경보 | ET SCAN, SID 1000004 표시 |
+| db_approach | MySQL 에러 로그 | DNS 해석 경고 347건; DB 조회 감사 로그와 구분 |
 | login_history | 로그인 시도 IP별 | 10.50.50.30: 965건 |
 
 ### 4-2. Splunk Alert 트리거 현황
 
 | 시각 | Alert | Severity | 트리거 원인 |
 |------|-------|----------|-----------|
+| 19:45:00 | Webshell Detection | Medium | 최종 Triggered Alerts 캡처에서 확인; 해당 검색 결과의 상세 원인은 추가 확인 |
 | 19:40:02 | WAF Alert Surge | Medium | 웹쉘 명령 실행 → ModSecurity 탐지 |
 | 19:35:01 | Webshell Detection | Medium | `/?cmd=id`, `/?cmd=whoami` 등 |
 | 19:35:01 | SQL Injection Detection | Critical | Snort SID 1000004 UNION SELECT 4건 |
@@ -130,9 +132,9 @@ Kali   (10.50.50.30) ─┘                                  │
 
 ### 4-4. 탐지 커버리지
 
-- **완전 탐지**: 5/7 단계
+- **공격 시도 탐지**: 5/7 단계
 - **부분 탐지**: 1/7 단계 (DB 접근 — 정상 DB 쿼리와 구분 어려움)
-- **네트워크 차단**: 1/7 단계 (유출 시도)
+- **외부 전송 실패**: 1/7 단계 (유출 시도, 원인 미확정)
 
 ---
 
@@ -148,7 +150,7 @@ Kali   (10.50.50.30) ─┘                                  │
 | 19:24 | SQL Injection 시도 (4건) | 공격 에스컬레이션 확인 |
 | 19:30 | 웹쉘 명령 실행 탐지 | L3 긴급 대응 판단 |
 | 19:35 | DB 데이터 유출 확인 | L4 긴급 대응 — 즉시 차단 결정 |
-| 19:40 | pfSense WAN Block 룰 적용 | 10.50.50.30 전체 차단 |
+| 19:40 | pfSense WAN Block 룰 적용 | 10.50.50.30 TCP 접근 차단 |
 | 19:40~ | 차단 검증 | curl 타임아웃, WPScan Aborted 확인 |
 
 ### 5-2. 차단 조치
@@ -171,7 +173,7 @@ Kali   (10.50.50.30) ─┘                                  │
 | DB 접근 탐지 | 정상/비정상 구분 불가 | **MySQL 감사 로그(Audit Plugin) 활성화** + 비정상 쿼리 패턴 Alert 추가 | 높음 |
 | WAF 모드 | DetectionOnly (탐지만) | **SecRuleEngine On** 전환하여 실제 차단 수행 | 중간 |
 | 로그 인덱스 | idx_waf 비어있음 | ModSecurity 로그 전용 인덱스 분리 수집 (rsyslog 설정 수정) | 낮음 |
-| Scanner Alert | cron 타이밍 미스매치 | **Real-time Alert** 또는 짧은 주기(1분) 검토 | 낮음 |
+| Scanner Alert | 발생 미확인 (원인 미확정) | 예약 검색 실행 이력·검색 시간 범위·임계값·수집 지연 확인 후 주기 조정 검토 | 낮음 |
 
 ### 6-2. 인프라 보강
 
@@ -342,7 +344,7 @@ index=idx_web "ModSecurity" | stats count | where count >= 30
 
 **4) 유출 경로 다각화 검토**
 
-DMZ 아웃바운드 차단으로 `curl` 유출이 막혔지만, 공격자는 다른 경로를 시도할 수 있다:
+별도 `curl` 전송은 실패했지만 원인은 미확정이며, 공격자는 다른 경로를 시도할 수 있다:
 - DNS 터널링을 통한 데이터 유출 (DNS는 보통 허용됨)
 - HTTP 응답 body에 데이터를 포함시켜 공격자가 직접 조회
 - 정상 웹 페이지에 데이터를 숨겨 놓고 나중에 수집 (steganography)

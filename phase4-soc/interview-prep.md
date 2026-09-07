@@ -21,7 +21,7 @@
   → Bee-box 7종 공격 + WordPress 킬체인 7단계 공격 (MITRE ATT&CK 매핑)
 
 [4단계] 탐지 엔지니어링
-  → Splunk Alert 5종 + SOC 대시보드 7패널 + 상관분석 쿼리
+  → Splunk Alert 5종 + SOC 대시보드 8패널 + 상관분석 쿼리
 
 [5단계] 관제 운영·대응
   → 실시간 모니터링 → Alert 트리거 → 차단 → 검증 → 관제 일지 6건
@@ -97,7 +97,7 @@ Kali   (10.50.50.30) ─┘                                  │
 |---|------|------|-------------|----------|
 | 1 | 정찰 | WPScan, nmap | T1595 | WP 7.1 식별, XML-RPC 활성화, Upload 디렉토리 리스팅 노출 |
 | 2 | SQLi 시도 | sqlmap | T1190 | **실패** — WP 코어 Prepared Statement 보호. 하지만 공격 시도 자체가 로그에 기록 |
-| 3 | 브루트포스 | hydra | T1110 | **성공** — admin/rlaquddn1@ (965건 시도, 약 30초) |
+| 3 | 브루트포스 | hydra | T1110 | **성공** — admin/rlaquddn1@ (POST 965건 기록, 성공·실패 미구분; 소요 시간은 실습 회차별 확인 필요) |
 | 4 | 웹쉘 | WP File Manager | T1505.003 | hello.php에 `shell_exec($_GET['cmd'])` 삽입 |
 | 5 | 내부 정찰 | 웹쉘 CLI | T1046 | wp-config.php에서 DB 인증정보(wp_admin/WpAdmin!2024) 획득 |
 | 6 | DB 탈취 | mysql (웹쉘 경유) | T1213 | wp_users 테이블 — admin 계정 + bcrypt 해시 |
@@ -118,7 +118,7 @@ Kali   (10.50.50.30) ─┘                                  │
 > curl 실행 시 Connection refused가 발생했습니다. 원인은 두 가지 가능성이 있습니다: (1) pfSense DMZ 아웃바운드 차단 정책, (2) 공격자 측 수신 서비스 미구동. 정확한 원인 확인에는 pfSense 방화벽 로그 분석이 필요합니다. 다만, DMZ 아웃바운드 차단 정책 자체는 설정되어 있어 네트워크 세그멘테이션의 효과는 유효합니다.
 
 **Q: "유출이 실패했으니 공격이 성공한 건 아닌 거 아닌가요?"**
-> 아닙니다. 공격자가 DB 데이터를 조회(SELECT)하는 데까지는 성공했습니다. 외부로 전송하는 것만 차단된 것이고, 공격자가 DNS 터널링이나 HTTP 응답 body에 데이터를 삽입하는 등의 우회 경로를 시도할 수 있습니다. 따라서 유출 차단만으로 안심할 수 없고, DB 접근 자체를 탐지·차단하는 것이 필요합니다.
+> 아닙니다. 공격자가 DB 데이터를 조회(SELECT)하는 데까지는 성공했습니다. 웹쉘 응답을 통한 정보 노출은 이미 발생했으며, 별도 외부 전송 시도는 실패했지만 원인은 미확정입니다.  공격자가 DNS 터널링이나 HTTP 응답 body에 데이터를 삽입하는 등의 우회 경로를 시도할 수 있습니다. 따라서 유출 차단만으로 안심할 수 없고, DB 접근 자체를 탐지·차단하는 것이 필요합니다.
 
 ---
 
@@ -160,14 +160,14 @@ alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"[LOCAL] WPScan Scanner Detected
 ### 탐지 결과 핵심 수치
 
 - 7단계 중 **5단계에서 공격 시도 탐지** (로그 기록 또는 IPS 경보), 1단계 부분 탐지 (DB 접근), 1단계 외부 전송 실패
-- Splunk Alert 5종 중 **4종 정상 트리거** (Scanner Detection은 cron 타이밍 미스매치로 미표시)
+- Splunk Alert 5종 중 **4종 정상 트리거** (Scanner Detection은 발생 원인 미확정으로 미표시)
 - Snort 브루트포스: **8건** (threshold 집계) vs Apache POST: **965건** (요청 수, 실패·성공 미구분) → 다중 소스 상관분석 필요성 입증
 
 ---
 
 ## Part 5. 관제 운영·대응
 
-### SOC 대시보드 (7패널)
+### SOC 대시보드 (8패널)
 
 | 패널 | 내용 | 공격 시 변화 |
 |------|------|------------|
@@ -177,6 +177,7 @@ alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"[LOCAL] WPScan Scanner Detected
 | att_ip | 공격자 IP Top5 | 10.50.50.30 최다 |
 | waf | WAF 탐지 현황 | Rule 949110, 913100 |
 | alerts | Snort 경보 | ET SCAN, SID 1000004 |
+| db_approach | MySQL 에러 로그 | DNS 해석 경고 347건; DB 조회 감사 로그와 구분 |
 | login_history | 로그인 IP별 | 10.50.50.30: 965건 |
 
 ### 대응 타임라인
@@ -188,7 +189,7 @@ alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"[LOCAL] WPScan Scanner Detected
 19:24  SQL Injection (4건)       → 에스컬레이션
 19:30  웹쉘 명령 실행 탐지        → L3 긴급 대응
 19:35  DB 데이터 유출 확인        → L4 긴급 대응
-19:40  pfSense WAN Block 적용    → 10.50.50.30 전체 차단
+19:40  pfSense WAN Block 적용    → 10.50.50.30 TCP 접근 차단
 19:40~ 차단 검증                 → curl 타임아웃, WPScan Aborted
 ```
 
@@ -215,7 +216,7 @@ alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"[LOCAL] WPScan Scanner Detected
 | DB 접근 정상/비정상 구분 불가 | 웹쉘이 정상 DB 연결 경로(3306) 사용 | MySQL Audit Plugin + 비정상 쿼리 패턴 Alert |
 | WAF 탐지만 하고 차단 안 함 | SecRuleEngine DetectionOnly 모드 | SecRuleEngine On 전환 |
 | DMZ→MySQL 3306 허용이 공격 피벗에 악용 | WordPress DB 연동에 필요 | DB 프록시 도입 또는 쿼리 화이트리스트 |
-| Scanner Alert cron 타이밍 미스매치 | 5분 주기 cron으로 실시간성 부족 | Real-time Alert 또는 1분 주기 |
+| Scanner Alert 발생 미확인 (원인 미확정) | 원인 검증 전 | 검색 실행 이력·시간 범위·임계값·수집 지연 확인 |
 
 ### 실무 확장 사항
 

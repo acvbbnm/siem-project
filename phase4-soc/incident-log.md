@@ -21,7 +21,7 @@
 | 대응 조치 | 모니터링 지속 (L1). 후속 공격 여부 관찰. |
 | 검증 결과 | 후속 공격(브루트포스, SQLi) 발생 확인 → L2 이상 대응으로 격상 |
 | 담당자 | SOC Analyst |
-| 비고 | Scanner Detection Splunk Alert는 cron 타이밍 미스매치로 Triggered Alerts에 미표시. Snort 경보(pfsense 인덱스)에서 직접 확인. |
+| 비고 | Scanner Detection Splunk Alert는 발생 원인 미확정으로 Triggered Alerts에 미표시. Snort 경보(pfsense 인덱스)에서 직접 확인. |
 
 ---
 
