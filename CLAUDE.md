@@ -37,7 +37,8 @@ Kali   (10.50.50.30) ─┘                                  │
 
 ```
 siem-project/
-├── README.md              ← 전체 진행상황 체크리스트 (Single Source of Truth)
+├── README.md              ← 프로젝트 소개·결과·배운 점
+├── DEVELOPMENT.md         ← 전체 진행상황 체크리스트 (Single Source of Truth)
 ├── CLAUDE.md              ← 이 파일
 ├── 프로젝트-확장방향.md      ← 확장 계획 상세 설계
 ├── phase1-attack/          ← Bee-box 공격 수행 기록
@@ -49,7 +50,7 @@ siem-project/
 
 ## 4. 작업 규칙 (Conventions)
 
-- **진행상황의 단일 출처는 루트 `README.md`의 체크리스트다.** 작업을 완료하면 해당 `- [ ]`를 `- [x]`로 바꾸고, 상세 결과는 각 phase README의 "결과:" 블록에 채운다.
+- **진행상황의 단일 출처는 루트 `DEVELOPMENT.md`의 체크리스트다.** 작업을 완료하면 해당 `- [ ]`를 `- [x]`로 바꾸고, 상세 결과는 각 phase README의 "결과:" 블록에 채운다.
 - 각 실습 결과는 **명령어 → 실제 출력 → 스크린샷 경로(images/) → Snort/Splunk 탐지 여부** 순서로 기록한다.
 - 캡처 이미지는 해당 phase의 `images/` 폴더에 넣고, 마크다운에서 상대경로로 참조한다.
 - 관제 일지는 `phase4-soc/incident-log.md`의 `[INC-xxx]` 양식을 따른다.
@@ -57,8 +58,8 @@ siem-project/
 
 ## 5. Claude에게 바라는 기본 동작
 
-- "진행상황 정리해줘" → README 체크리스트와 각 phase README를 읽고 현재 완료/미완료를 요약한다.
-- 실습 로그(명령 출력, Splunk 쿼리 결과)를 붙여주면 → 해당 phase README의 "결과:" 블록을 채우고 README 체크박스를 갱신한다.
+- "진행상황 정리해줘" → DEVELOPMENT.md 체크리스트와 각 phase README를 읽고 현재 완료/미완료를 요약한다.
+- 실습 로그(명령 출력, Splunk 쿼리 결과)를 붙여주면 → 해당 phase README의 "결과:" 블록을 채우고 DEVELOPMENT.md 체크박스를 갱신한다.
 - 공격 페이로드/명령은 **이 실습 랩의 사설 IP 대역 안에서만** 유효한 형태로 제시한다.
 - 불확실하면 추측해서 체크박스를 완료로 바꾸지 말고, 근거(붙여진 로그)가 있을 때만 완료 처리한다.
 
