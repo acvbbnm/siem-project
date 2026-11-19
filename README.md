@@ -1,28 +1,33 @@
 # SIEM 공격 탐지·대응 실습
 
-가상 기업망에서 네트워크·웹·DB 로그를 Splunk로 모아 경보를 판정하고, 방화벽 차단 결과를 검증한 개인 프로젝트입니다.
+가상 기업망에서 네트워크·웹·DB 로그를 대조해 사고 흐름을 재구성하고 방화벽 차단을 검증했습니다.
 
-[최종 보고서 · 9월 정정본](https://github.com/acvbbnm/siem-project/blob/d2b206ccab362037f6dfd3596c7700641aba744f/phase4-soc/final-report.md) · [31쪽 요약 보고서](phase4-soc/project-summary-report.pdf) · [관제 일지](https://github.com/acvbbnm/siem-project/blob/d2b206ccab362037f6dfd3596c7700641aba744f/phase4-soc/incident-log.md)
+개인 프로젝트 · 2026년 8월 실습, 9월 보고서 정정 · 가상망 구성, 탐지, 관제 기록과 보고서 작성
 
-![Splunk SOC_Monitor 대시보드](https://raw.githubusercontent.com/acvbbnm/siem-project/d2b206ccab362037f6dfd3596c7700641aba744f/phase4-soc/images/soc-12-dashboard-fullscreen-overview.png)
+[최종 보고서 · 정정본](https://github.com/acvbbnm/siem-project/blob/d2b206ccab362037f6dfd3596c7700641aba744f/phase4-soc/final-report.md) · [31쪽 PDF](phase4-soc/project-summary-report.pdf) · [관제 일지](https://github.com/acvbbnm/siem-project/blob/d2b206ccab362037f6dfd3596c7700641aba744f/phase4-soc/incident-log.md)
 
-## 가상망과 로그 수집
+![경보, 최근 웹 요청, WAF와 DB 기록을 모아 본 Splunk SOC_Monitor 화면](https://raw.githubusercontent.com/acvbbnm/siem-project/d2b206ccab362037f6dfd3596c7700641aba744f/phase4-soc/images/soc-12-dashboard-fullscreen-overview.png)
 
-ESXi에 공격 실습망, DMZ, 내부망, 관리망을 나눴습니다. pfSense·Snort는 망 경계에, ModSecurity는 웹 서버에 두고 방화벽·IPS, 웹·WAF, MySQL 로그를 Splunk로 모았습니다. [환경 구축](phase2.5-setup/README.md) · [로그 인덱스 설정](phase2.5-setup/splunk/indexes.conf)
+## 구역마다 관측할 로그를 배치한 방법
 
-## 경보 판정과 정책 검증
-
-경보의 시각과 출발지를 웹·WAF 기록에 맞춰 어떤 요청이 도달했는지 확인했습니다. DB 접근은 전용 경보 없이 일부 흔적만 관찰돼 감사 로그 수집을 개선안으로 남겼습니다. 스캐너 경보가 발생하지 않은 원인과 별도 외부 전송 시도의 실패 원인은 미확정으로 기록했습니다.
-
-pfSense 정책 적용 전후를 비교해 같은 출발지의 HTTP 재접속이 타임아웃되는 것을 확인했습니다. DMZ 통신 제한과 Snort 차단 모드도 별도로 검증했습니다. [방화벽·IPS 검증](phase2-detect/README.md) · [SOC 대응 기록](https://github.com/acvbbnm/siem-project/blob/d2b206ccab362037f6dfd3596c7700641aba744f/phase4-soc/README.md)
-
-## Splunk 검색 예시
-
-랩을 구성하고 수집을 시작한 뒤 인덱스별 이벤트 수를 조회합니다. 한 인덱스의 값이 비어 있으면 먼저 입력과 라우팅 설정을 확인합니다.
-
-~~~spl
-(index=pfsense OR index=idx_web OR index=idx_waf OR index=idx_db)
-| stats count by index
+~~~mermaid
+flowchart LR
+    A["격리 실습망"] --> F["pfSense · Snort"]
+    F --> W["DMZ · 웹 · ModSecurity"]
+    W --> D["내부망 · MySQL"]
+    F --> S["Splunk"]
+    W --> S
+    D --> S
+    S --> T["경보 판정 · 사고 기록"]
 ~~~
 
-이 저장소의 [구축 문서](phase2.5-setup/README.md)와 [개발 기록](DEVELOPMENT.md)에서 필요한 VM, 네트워크, 수집 설정을 확인할 수 있습니다.
+망 경계의 Snort는 네트워크 요청을, 웹 서버의 Apache·ModSecurity는 애플리케이션 동작을 관측했습니다. Splunk에서 시각과 출발지를 대조해 경보가 난 시점에 실제로 어디까지 접근했는지 확인했습니다.
+
+## DB 접근과 외부 전송을 구분한 조사
+
+- **문제.** 웹 서버를 거친 DB 접근이 있었지만 DB의 전용 경보가 없었습니다. 별도 외부 전송 시도도 응답 오류로 끝났습니다.
+- **판단.** 웹 응답에서 DB 정보 노출을 확인했습니다. 당시 MySQL 오류·슬로우 로그만으로 조회 의도를 판별하기 어려웠고, 외부 전송 실패 원인은 미확정으로 기록했습니다.
+- **대응과 검증.** pfSense 정책 적용 전후에 같은 출발지의 HTTP 재접속을 확인했습니다. 정책 적용 뒤 타임아웃을 기록했고, DMZ 통신 제한과 Snort 차단 모드도 별도로 검증했습니다.
+- **결과.** 실습의 7단계 중 5단계에서 공격 시도 탐지, DB 접근 1단계에서 부분 탐지를 기록했습니다. DB 쿼리 감사 로그 수집은 후속 개선안으로 남겼습니다.
+
+[방화벽·IPS 검증](phase2-detect/README.md) · [가상망 구축과 Splunk 설정](phase2.5-setup/README.md)
