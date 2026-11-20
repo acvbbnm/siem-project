@@ -1,0 +1,7 @@
+index=pfsense ("1000001" OR "1000002" OR "1000004" OR "1000006")
+| eval phase=case(
+    like(_raw,"%1000001%"),"1_WPScan",
+    like(_raw,"%1000002%"),"2_BruteForce",
+    like(_raw,"%1000004%"),"3_SQLi",
+    like(_raw,"%1000006%"),"4_Webshell")
+| timechart span=5m count by phase

@@ -1,0 +1,4 @@
+index=idx_db (sourcetype="mysql:slow" OR sourcetype="mysql:error")
+| eval is_external=if(match(host,"10\.0\.10\."), "DMZ(비정상)", "정상")
+| stats count by host, is_external, user
+| where is_external="DMZ(비정상)"

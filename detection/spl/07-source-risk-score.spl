@@ -1,0 +1,13 @@
+index=pfsense ("1000001" OR "1000002" OR "1000004" OR "1000006")
+| eval score=case(
+    like(_raw,"%1000001%"), 1,
+    like(_raw,"%1000002%"), 3,
+    like(_raw,"%1000004%"), 5,
+    like(_raw,"%1000006%"), 8)
+| eval phase=case(
+    like(_raw,"%1000001%"), "WPScan",
+    like(_raw,"%1000002%"), "BruteForce",
+    like(_raw,"%1000004%"), "SQLi",
+    like(_raw,"%1000006%"), "Webshell")
+| stats sum(score) as risk_score, count as event_count, values(phase) as attack_phases by host
+| sort -risk_score

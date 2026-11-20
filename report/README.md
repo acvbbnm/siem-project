@@ -16,7 +16,7 @@
 ## 네트워크 구성
 
 ![Bee-box 기반 초기 가상망 구성도](images/network.png)
-*초기 구성도. 후속 실습에서 DMZ의 WordPress·ModSecurity와 내부망의 MySQL을 추가했습니다.*
+*Bee-box 환경의 구성도입니다. 최종 관제 회차의 WordPress·MySQL 환경은 [최종 실습망](../network/README.md#최종-실습망)에서 볼 수 있습니다.*
 
 ESXi에서 실습망, 경계망, DMZ, 내부망, 관리망을 분리했습니다. VyOS가 라우팅을 맡고 pfSense·Snort가 경계에 위치합니다. DMZ에는 웹 서비스와 WAF를, 내부망에는 MySQL과 Splunk를 배치했습니다. 관리망에서는 정상 웹 요청과 경보를 비교했습니다.
 
@@ -54,6 +54,12 @@ Bee-box에서 정찰, SQL 인젝션, XSS, 명령 주입, 인증 공격을 유형
 ## 로그 분석과 탐지
 
 경보의 출발지와 시각을 웹 요청·WAF 기록과 대조했습니다. SQL 인젝션은 시도 경보를 확인했고, DB 노출은 웹의 실행 응답으로 범위를 확인했습니다. MySQL 오류·슬로우 로그는 정상 조회와 비정상 조회를 구분하기에 한계가 있었습니다.
+
+### 반복 로그인 요청
+
+짧은 시간에 한 출발지의 로그인 요청이 몰린 구간을 살펴봤습니다. 같은 실습에서 Snort는 탐지 8건, Apache는 로그인 요청 965건을 기록했습니다. Snort 경보는 탐지 조건에 맞은 사건을 세므로, 얼마나 많은 요청이 들어왔는지는 웹 서버 로그에서 확인했습니다. 요청 건수와 인증 결과는 로그에서 따로 봐야 합니다.
+
+[탐지 룰과 SPL](../detection/README.md) · [ATT&CK 매핑과 관측 지표](../detection/indicators.md)
 
 ![Splunk SOC_Monitor 대시보드](images/soc-dashboard.png)
 *실습에서 사용한 SOC_Monitor. 이벤트 추이, 출발지, WAF, 인증 및 DB 기록을 모아서 확인했습니다.*

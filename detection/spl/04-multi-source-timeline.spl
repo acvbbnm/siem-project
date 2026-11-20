@@ -1,0 +1,9 @@
+index=pfsense ("1000002" OR "1000004" OR "1000006")
+| eval phase=case(
+    like(_raw,"%1000002%"),"3_BruteForce",
+    like(_raw,"%1000004%"),"2_SQLi",
+    like(_raw,"%1000006%"),"4_Webshell")
+| append [search index=idx_web "cmd=" | eval phase="5_InternalRecon"]
+| append [search index=idx_db | eval phase="6_DB_Access"]
+| append [search index=pfsense "10.0.10.80" "10.50.50.30" "filterlog" | eval phase="7_Exfil_Attempt"]
+| timechart span=5m count by phase

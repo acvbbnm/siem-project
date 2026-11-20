@@ -1,0 +1,6 @@
+index=pfsense ("SQL" OR "1000004")
+| eval layer=case(
+    like(_raw,"%1000004%"), "Snort/커스텀",
+    like(_raw,"%ET WEB_SERVER%"), "Snort/ET",
+    true(), "Snort/기타")
+| stats count by layer

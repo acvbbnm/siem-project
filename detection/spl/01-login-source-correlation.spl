@@ -1,0 +1,4 @@
+index=idx_web "wp-login.php"
+| eval source="Apache"
+| append [search index=pfsense "1000002" | eval source="Snort"]
+| stats count by source

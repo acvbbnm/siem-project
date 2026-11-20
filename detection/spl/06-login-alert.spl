@@ -1,0 +1,4 @@
+index=idx_web sourcetype="apache:access" uri="/wp-login.php" method="POST"
+| bucket _time span=1m
+| stats count by _time, clientip
+| where count >= 5

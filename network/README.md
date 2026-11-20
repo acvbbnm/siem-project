@@ -2,20 +2,30 @@
 
 ESXi에서 실습망, 외부 경계망, DMZ, 내부망, 관리망을 나눴습니다. VyOS는 라우팅을 맡고, pfSense와 Snort는 망 경계에서 통신과 경보를 기록합니다.
 
+## 최종 실습망
+
+실선은 네트워크 연결, 점선은 Splunk로 보내는 로그를 표시합니다.
+
 ~~~mermaid
 flowchart LR
-    A["실습망 · att-mint / Kali"] --> V["VyOS"]
-    V --> F["경계망 · pfSense / Snort"]
-    F --> W["DMZ · Bee-box / WordPress / ModSecurity"]
-    F --> I["내부망 · MySQL / Splunk"]
-    F --> M["관리망 · 관제 및 정상 요청"]
-    W -. "웹·WAF·인증 로그" .-> I
-    F -. "방화벽·IPS 로그" .-> I
+    A["실습망의 Kali"] --> V["VyOS 라우터"]
+    V --> F["pfSense·Snort"]
+    F --> W["DMZ<br/>WordPress·ModSecurity"]
+    F --> D["내부망 MySQL"]
+    F --> S["내부망 Splunk"]
+    F --> M["관리 단말"]
+    W -. "웹·WAF·인증" .-> S
+    F -. "방화벽·IDS" .-> S
+    D -. "오류·느린 쿼리" .-> S
 ~~~
+
+## 초기 Bee-box 환경
 
 ![Bee-box 기반 초기 가상망 구성도](../report/images/network.png)
 
-위는 초기 Bee-box 구성도입니다. 후속 실습에는 DMZ의 WordPress·ModSecurity와 내부망의 MySQL을 추가했습니다.
+Bee-box에서 탐지와 차단을 먼저 확인했습니다. 최종 실습에는 DMZ의 WordPress·ModSecurity와 내부망의 MySQL을 추가했습니다.
+
+## 로그를 확인한 위치
 
 | 구역 | 구성 | 관측 내용 |
 | --- | --- | --- |

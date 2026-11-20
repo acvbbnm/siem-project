@@ -1,0 +1,2 @@
+index=idx_web "cmd="
+| stats count by source
