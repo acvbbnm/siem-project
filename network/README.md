@@ -9,7 +9,7 @@ ESXi에서 실습망, 외부 경계망, DMZ, 내부망, 관리망을 나눴습�
 ~~~mermaid
 flowchart LR
     A["실습망의 Kali"] --> V["VyOS 라우터"]
-    V --> F["pfSense·Snort"]
+    V -->|"rf-net"| F["pfSense·Snort"]
     F --> W["DMZ<br/>WordPress·ModSecurity"]
     F --> D["내부망 MySQL"]
     F --> S["내부망 Splunk"]
@@ -18,6 +18,12 @@ flowchart LR
     F -. "방화벽·IDS" .-> S
     D -. "오류·느린 쿼리" .-> S
 ~~~
+
+복구한 ESXi에는 VM 9대가 등록돼 있습니다. VM 목록에서 `ubuntu`의 호스트 이름이 `splunk`로 표시됩니다. ESXi 관리용 `Management Network`는 `vSwitch0`에 있고, 실습 관리 단말의 `mng-net`은 별도 vSwitch에 연결됩니다.
+
+![복구한 ESXi의 VM 목록과 Splunk 호스트 이름](../report/images/recovered-esxi-vms.png)
+
+![복구한 ESXi의 포트 그룹과 vSwitch 연결](../report/images/recovered-esxi-port-groups.png)
 
 ## 초기 Bee-box 환경
 

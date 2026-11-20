@@ -6,12 +6,25 @@ Snort는 망 경계에서, ModSecurity는 웹 서버에서 관측했습니다. S
 
 | 항목 | 확인한 결과 |
 | --- | --- |
-| Snort | [커스텀 룰 9개](local.rules). 실습 기록에서 4개 SID의 경보 확인 |
-| Splunk | 저장 경보 5종 중 4종이 발생. WAF 반복 경보를 포함해 총 7건 |
+| Snort | 실습 기록에서 커스텀 SID 4개의 경보 확인. [설계 당시 룰 9개](local.rules) |
+| Splunk | 저장 경보 5종 중 4종이 발생. WAF 반복 경보와 19:45 웹셸 경보를 포함해 총 8건 |
 | 관제 화면 | 전체 이벤트, 출발지별 경보, WAF, 인증, DB 기록을 한 화면에서 비교 |
 | 탐지 범위 | 7단계 중 5단계 공격 시도 탐지, DB 접근 1단계 부분 탐지, 외부 전송 실패 1단계 |
 
 스캐너는 Snort와 웹 로그에서 관찰했지만 Splunk의 해당 저장 경보는 발생 여부를 확인하지 못했습니다. 원인은 미확정입니다. SQL 인젝션 경보는 요청 시도를 보여줬고, 침해 성공 여부는 응답과 다른 로그를 따로 확인했습니다.
+
+## 설계 당시 룰과 pfSense 설정
+
+`local.rules`는 설계 당시 저장한 파일입니다. 아래 SID는 2026년 11월 20일 복구한 pfSense의 **WAN → custom.rules** 정의에서 확인했습니다.
+
+| pfSense SID | 룰 | 설계 파일의 SID |
+| --- | --- | --- |
+| `1000001` | WPScan 정찰 | `1000009` |
+| `1000002` | 반복 로그인 요청 | `1000001` |
+| `1000004` | SQL Injection 시도 | 해당 룰 없음 |
+| `1000006` | 웹셸 접근 시도 | `1000007`에 웹셸 응답을 보는 별도 룰 정의 |
+
+`1000006`은 복구한 설정과 8월 27일 원본 경보 양쪽에서 확인했습니다. 위 표는 현재 룰 정의를 기준으로 작성했으며, 당시 경보 발생 여부는 로그에서 별도로 확인했습니다.
 
 ## Splunk 검색과 경보
 
@@ -19,13 +32,13 @@ Snort는 망 경계에서, ModSecurity는 웹 서버에서 관측했습니다. S
 
 | SPL | 무엇을 확인하는지 | 확인 상태 |
 | --- | --- | --- |
-| [1. 로그인 요청과 Snort 경보](spl/01-login-source-correlation.spl) | 같은 출발지의 웹 요청과 경보를 대조 | 실행 확인 항목 미완료 |
-| [2. SQL 인젝션 관련 경보 집계](spl/02-sqli-sensor-counts.spl) | 경보 소스별 관측 수 비교 | 검색 결과 별도 확인 필요 |
-| [3. 웹 요청 시퀀스](spl/03-web-request-sequence.spl) | 시간순으로 관련 웹 요청을 조회 | 검색 결과 별도 확인 필요 |
-| [4. Snort 시간축](spl/04-snort-timeline.spl) · [다중 소스 시간축](spl/04-multi-source-timeline.spl) | 로그를 시간대별로 묶어 사건 흐름 확인 | 실행 확인 항목 미완료 |
-| [5. DB 활동 조회](spl/05-db-activity.spl) · [건수 조회](spl/05-db-count.spl) | DB 기록에 남은 활동과 건수 조회 | 검색 결과 별도 확인 필요 |
+| [1. 로그인 요청과 Snort 경보](spl/01-login-source-correlation.spl) | 같은 출발지의 웹 요청과 경보를 대조 | Phase 3 기록에 Apache 317건, Snort 8건 |
+| [2. SQL 인젝션 관련 경보 집계](spl/02-sqli-sensor-counts.spl) | 경보 소스별 관측 수 비교 | Phase 3 기록에 ET 룰 18건, 커스텀 SID 3건 |
+| [3. 웹 요청 시퀀스](spl/03-web-request-sequence.spl) | 관련 웹 요청을 집계 | Phase 3 기록에 웹 요청 37건 |
+| [4. Snort 시간축](spl/04-snort-timeline.spl) · [다중 소스 시간축](spl/04-multi-source-timeline.spl) | 로그를 시간대별로 묶어 사건 흐름 확인 | Phase 3 기록에 Snort 시간축 확인. 다중 소스 버전은 별도 검증 필요 |
+| [5. DB 활동 조회](spl/05-db-activity.spl) · [건수 조회](spl/05-db-count.spl) | DB 기록에 남은 활동과 건수 조회 | 기존 쿼리의 sourcetype과 실제 DB 로그의 syslog가 달랐음 |
 | [6. 반복 로그인 요청 경보](spl/06-login-alert.spl) | 웹 요청을 출발지별로 집계 | 해당 유형 경보 발생 기록 있음 |
-| [7. 출발지별 위험 점수](spl/07-source-risk-score.spl) | 여러 종류의 Snort 경보를 출발지별로 집계 | 실행 확인 항목 미완료 |
+| [7. 출발지별 위험 점수](spl/07-source-risk-score.spl) | 여러 종류의 Snort 경보를 점수로 집계 | 기존 쿼리는 pfSense 센서 호스트로 묶음. 출발지별 검증 미완료 |
 
 6번은 웹 로그를 쓰는 단일 소스 경보입니다. 로그인 요청에 대한 경보는 확인했으며, 실제 침해 여부를 판단할 때는 응답과 다른 로그를 함께 봤습니다. 관리 단말의 정상 접속 1건과 실습 요청을 구분한 기록이 있습니다.
 
