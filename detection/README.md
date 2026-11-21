@@ -73,6 +73,8 @@ pfSense에 들어 있는 SID와 Splunk가 수집한 시그니처 메시지를 �
 
 ![Splunk에서 Snort 커스텀 SID를 조회한 화면](images/snort-sid-counts.png)
 
+![WordPress 정찰 구간의 Snort 경보 조회](images/wordpress-recon-alerts.png)
+
 SQL 인젝션에서는 커스텀 룰 3건과 ET 룰 18건이 기록됐습니다. 센서가 요청에 반응한 횟수이므로 침해 성공 건수로 해석하지 않았습니다.
 
 ### 센서별 집계 대조
@@ -82,6 +84,8 @@ SQL 인젝션에서는 커스텀 룰 3건과 ET 룰 18건이 기록됐습니다.
 Apache에서 로그인 페이지 접근 317건을 확인했고, Snort에서는 반복 요청 임계값을 넘긴 경보 8건을 확인했습니다. 317건은 페이지 접근 수이고 8건은 룰이 발생시킨 경보 수입니다. 최종 관제 일지의 965건은 별도 회차에서 집계한 Apache 로그인 요청입니다.
 
 ![Apache 로그인 페이지 접근 집계](images/apache-login-counts.png)
+
+![반복 로그인 요청에 반응한 Snort 경보](images/wordpress-auth-alerts.png)
 
 #### DB 접근
 
@@ -254,6 +258,10 @@ index=pfsense snort
 pfSense의 Snort Alerts에서 경보의 시각·출발지·목적지·시그니처를 확인한 뒤 Splunk에서 같은 이벤트를 찾았습니다.
 
 ![pfSense의 Snort 경보 목록](images/bee-box/snort-alerts-overview.png)
+
+![Bee-box 정찰 구간에서 조회한 Snort 경보](images/bee-box/bee-box-recon-alerts.png)
+
+![Bee-box 반복 로그인 구간의 Snort 검색 결과](images/bee-box/bee-box-auth-search.png)
 
 ### 출발지와 시간대 분석
 
