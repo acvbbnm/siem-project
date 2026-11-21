@@ -2,6 +2,8 @@
 
 Snort는 망 경계에서, ModSecurity는 웹 서버에서 관측했습니다. Splunk에서 같은 시각대의 출발지와 웹 요청을 대조해 경보의 영향 범위를 확인했습니다.
 
+[룰과 로그를 검증한 기록](verification.md)에서 실제 SID별 경보 수, 정상 요청과의 비교, 저장 경보 설정을 볼 수 있습니다.
+
 ![Splunk SOC_Monitor 대시보드](../report/images/soc-dashboard.png)
 
 | 항목 | 확인한 결과 |

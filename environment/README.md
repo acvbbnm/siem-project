@@ -24,11 +24,9 @@ ESXi에서 실습망, 외부 경계망, DMZ, 내부망, 관리망을 나눴습�
 
 ![복구한 ESXi의 포트 그룹과 vSwitch 연결](../report/images/recovered-esxi-port-groups.png)
 
-## 초기 Bee-box 환경
+## WordPress·MySQL 환경 구축
 
-![Bee-box 기반 초기 가상망 구성도](../report/images/network.png)
-
-Bee-box에서 탐지와 차단을 먼저 확인했습니다. [Bee-box 탐지와 차단 검증](bee-box/README.md)에 Splunk 분석 준비, Snort 경보 확인, 로그 분석과 방화벽 정책별 기록을 남겼습니다.
+[설치와 연동 기록](build.md)에 가상 NIC와 라우팅 확인, WordPress·MySQL 배치, pfSense 정책 적용, Splunk 수집 확인 순서를 남겼습니다.
 
 ## 로그를 확인한 위치
 
@@ -49,5 +47,11 @@ Bee-box에서 탐지와 차단을 먼저 확인했습니다. [Bee-box 탐지와 
 | MySQL 오류·슬로우 쿼리 | DB 서버 rsyslog, TCP 9516 | `idx_db` |
 
 WAF용 `idx_waf`도 설정했습니다. 관제에 사용한 ModSecurity 기록은 `idx_web`에서 확인했습니다.
+
+## 초기 Bee-box 환경
+
+![Bee-box 기반 초기 가상망 구성도](../report/images/network.png)
+
+[Bee-box 탐지와 차단 검증](bee-box/README.md)에 Splunk 분석 준비, Snort 경보 확인, 로그 분석과 방화벽 정책별 기록을 남겼습니다.
 
 [최종 보고서](../report/README.md)

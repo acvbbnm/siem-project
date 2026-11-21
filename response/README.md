@@ -1,6 +1,8 @@
-# 관제와 대응
+# 대응 내역
 
 관제 일지를 INC-001부터 INC-006까지 남겼습니다. 정찰, 인증 공격, SQL 인젝션 시도, 웹셸 실행, DB 정보 노출, 차단 검증을 각각 기록했습니다.
+
+[사건별 관제 일지](incident-notes.md)에 경보를 확인한 순서와 판단 근거, 조치, 후속 조치를 남겼습니다.
 
 | 사건 | 판단과 조치 |
 | --- | --- |
@@ -18,7 +20,26 @@
 | 19:24~19:35 | SQL 인젝션 시도, 웹셸 실행, DB 정보 노출 근거 확인 |
 | 19:40 이후 | pfSense 정책 적용 후 동일 출발지의 HTTP 재접속 실패 확인 |
 
+## Splunk 경보
+
+최종 관제 일지에는 4종 8건이 기록됐습니다. 정찰 흔적은 Snort와 웹 로그에서 확인했습니다.
+
+| 시각 KST | Splunk 경보 |
+| --- | --- |
+| 19:10:01 | WAF Alert Surge |
+| 19:20:01 | Brute Force Detection, WAF Alert Surge |
+| 19:30:03 | WAF Alert Surge |
+| 19:35:01 | SQL Injection Detection, Webshell Detection |
+| 19:40:02 | WAF Alert Surge |
+| 19:45:01 | Webshell Detection |
+
+![Splunk Triggered Alerts에 기록된 최종 관제 경보 8건](images/triggered-alerts.png)
+
+## 차단 전후
+
 ![pfSense WAN의 적용 후 차단 규칙](../report/images/wan-policy.png)
+
+[pfSense WAN 정책 적용 화면](images/pfsense-wan-rules.png)
 
 초기 실습에서는 DMZ 통신 제한과 Snort 차단 모드도 별도로 확인했습니다. 최종 관제 회차의 HTTP 재접속 타임아웃은 pfSense 정책 조치의 검증 결과로 기록했습니다.
 
