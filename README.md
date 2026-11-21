@@ -1,4 +1,4 @@
-# SIEM 공격 탐지·대응 실습
+# SIEM 공격 탐지·대응 실습 · [최종 보고서 PDF](report/siem-report.pdf)
 
 ## 환경 구축
 
@@ -39,5 +39,3 @@ Splunk에서 반복 로그인과 웹셸 경보를 확인하고, 같은 시간대
 3. **후속 조치** · DB 감사 로그 수집과 DMZ에서 DB로 향하는 접근 제한을 재발 방지 방안으로 정리했습니다.
 
 [사건 일지와 차단 결과](response/README.md)
-
-## [최종 보고서 PDF](report/siem-report.pdf)
