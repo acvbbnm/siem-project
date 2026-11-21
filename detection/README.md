@@ -2,13 +2,11 @@
 
 Snort는 망 경계에서, ModSecurity는 웹 서버에서 관측했습니다. Splunk에서 같은 시각대의 출발지와 웹 요청을 대조해 경보의 영향 범위를 확인했습니다.
 
-[pfSense 커스텀 룰](#pfsense-커스텀-룰) · [탐지 검증](#탐지-검증) · [Splunk 검색과 경보](#splunk-검색과-경보) · [ATT&CK 매핑과 관측 지표](#attck-매핑과-관측-지표) · [Bee-box 탐지·차단 검증](#bee-box-탐지차단-검증)
-
 ![Splunk SOC_Monitor 대시보드](../report/images/soc-dashboard.png)
 
 | 항목 | 확인한 결과 |
 | --- | --- |
-| Snort | 실습 기록에서 커스텀 SID 4개의 경보 확인. [설계 당시 룰 9개](local.rules) |
+| Snort | 실습 기록에서 커스텀 SID 4개의 경보 확인 |
 | Splunk | 저장 경보 5종 중 4종이 발생. WAF 반복 경보와 19:45 웹셸 경보를 포함해 총 8건 |
 | 관제 화면 | 전체 이벤트, 출발지별 경보, WAF, 인증, DB 기록을 한 화면에서 비교 |
 | 탐지 범위 | 7단계 중 5단계 공격 시도 탐지, DB 접근 1단계 부분 탐지, 외부 전송 실패 1단계 |
@@ -17,7 +15,7 @@ Snort는 망 경계에서, ModSecurity는 웹 서버에서 관측했습니다. S
 
 ## pfSense 커스텀 룰
 
-pfSense WAN 커스텀 룰 9개는 최종 보고서 PDF 부록에 있습니다. [설계 당시 룰](local.rules)과 SID 배정이 다릅니다.
+pfSense WAN에 적용한 룰과 초기 설계 문서의 SID 배정이 달랐습니다. 경보를 분석할 때는 실제 설정의 SID를 기준으로 삼았습니다.
 
 | pfSense SID | 룰 | 설계 파일의 SID |
 | --- | --- | --- |
@@ -27,6 +25,37 @@ pfSense WAN 커스텀 룰 9개는 최종 보고서 PDF 부록에 있습니다. [
 | `1000006` | 웹셸 접근 시도 | `1000007`에 웹셸 응답을 보는 별도 룰 정의 |
 
 `1000006`은 복구한 설정과 8월 27일 원본 경보 양쪽에서 확인했습니다. 위 표는 현재 룰 정의를 기준으로 작성했으며, 당시 경보 발생 여부는 로그에서 별도로 확인했습니다.
+
+### pfSense WAN 룰 원문
+
+```text
+# WordPress 정찰
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL WordPress wpscan detected"; flow:to_server,established; content:"WPScan"; http_header; sid:1000001; rev:1;)
+
+# wp-login 브루트포스
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL WordPress login brute-force attempt"; flow:to_server,established; content:"POST"; http_method; content:"/wp-login.php"; http_uri; detection_filter:track by_src,count 5,seconds 60; sid:1000002; rev:1;)
+
+# xmlrpc 브루트포스
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL WordPress xmlrpc brute-force"; flow:to_server,established; content:"POST"; http_method; content:"/xmlrpc.php"; http_uri; content:"methodCall"; http_client_body; sid:1000003; rev:1;)
+
+# SQL Injection
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL SQL Injection attempt UNION SELECT"; flow:to_server,established; content:"UNION"; nocase; http_uri; content:"SELECT"; nocase; http_uri; sid:1000004; rev:1;)
+
+# File Manager CVE-2020-25213
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL WP File Manager CVE-2020-25213 exploit"; flow:to_server,established; content:"POST"; http_method; content:"connector.minimal.php"; http_uri; sid:1000005; rev:1;)
+
+# 웹쉘 접근
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL Webshell access attempt"; flow:to_server,established; content:".php"; http_uri; content:"cmd"; http_uri; sid:1000006; rev:1;)
+
+# 내부 네트워크 스캔 (DMZ→inner)
+alert tcp 10.0.10.0/24 any -> 10.0.100.0/24 any (msg:"LOCAL DMZ to Internal network scan"; flags:S; threshold:type threshold,track by_src,count 5,seconds 60; sid:1000007; rev:1;)
+
+# DB 대량 조회 (큰 응답)
+alert tcp 10.0.100.0/24 3306 -> 10.0.10.0/24 any (msg:"LOCAL Large MySQL response to DMZ"; flow:from_server,established; dsize:>10000; sid:1000008; rev:1;)
+
+# 외부 유출 시도 (DMZ→외부)
+alert tcp 10.0.10.0/24 any -> $EXTERNAL_NET any (msg:"LOCAL DMZ outbound data exfiltration attempt"; flow:to_server,established; dsize:>5000; sid:1000009; rev:1;)
+```
 
 ## 탐지 검증
 
@@ -76,15 +105,112 @@ Apache에서 로그인 페이지 접근 317건을 확인했고, Snort에서는 �
 
 | SPL | 무엇을 확인하는지 | 확인 상태 |
 | --- | --- | --- |
-| [1. 로그인 요청과 Snort 경보](spl/01-login-source-correlation.spl) | 같은 출발지의 웹 요청과 경보를 대조 | Phase 3 기록에 Apache 317건, Snort 8건 |
-| [2. SQL 인젝션 관련 경보 집계](spl/02-sqli-sensor-counts.spl) | 경보 소스별 관측 수 비교 | Phase 3 기록에 ET 룰 18건, 커스텀 SID 3건 |
-| [3. 웹 요청 시퀀스](spl/03-web-request-sequence.spl) | 관련 웹 요청을 집계 | Phase 3 기록에 웹 요청 37건 |
-| [4. Snort 시간축](spl/04-snort-timeline.spl) · [다중 소스 시간축](spl/04-multi-source-timeline.spl) | 로그를 시간대별로 묶어 사건 흐름 확인 | Phase 3 기록에 Snort 시간축 확인. 다중 소스 버전은 별도 검증 필요 |
-| [5. DB 활동 조회](spl/05-db-activity.spl) · [건수 조회](spl/05-db-count.spl) | DB 기록에 남은 활동과 건수 조회 | 기존 쿼리의 sourcetype과 실제 DB 로그의 syslog가 달랐음 |
-| [6. 반복 로그인 요청 경보](spl/06-login-alert.spl) | 웹 요청을 출발지별로 집계 | 해당 유형 경보 발생 기록 있음 |
-| [7. 출발지별 위험 점수](spl/07-source-risk-score.spl) | 여러 종류의 Snort 경보를 점수로 집계 | 기존 쿼리는 pfSense 센서 호스트로 묶음. 출발지별 검증 미완료 |
+| 1. 로그인 요청과 Snort 경보 | 같은 출발지의 웹 요청과 경보를 대조 | Phase 3 기록에 Apache 317건, Snort 8건 |
+| 2. SQL 인젝션 관련 경보 집계 | 경보 소스별 관측 수 비교 | Phase 3 기록에 ET 룰 18건, 커스텀 SID 3건 |
+| 3. 웹 요청 시퀀스 | 관련 웹 요청을 집계 | Phase 3 기록에 웹 요청 37건 |
+| 4. Snort 시간축 · 다중 소스 시간축 | 로그를 시간대별로 묶어 사건 흐름 확인 | Phase 3 기록에 Snort 시간축 확인. 다중 소스 버전은 별도 검증 필요 |
+| 5. DB 활동 조회 · 건수 조회 | DB 기록에 남은 활동과 건수 조회 | 기존 쿼리의 sourcetype과 실제 DB 로그의 syslog가 달랐음 |
+| 6. 반복 로그인 요청 경보 | 웹 요청을 출발지별로 집계 | 해당 유형 경보 발생 기록 있음 |
+| 7. 출발지별 위험 점수 | 여러 종류의 Snort 경보를 점수로 집계 | 기존 쿼리는 pfSense 센서 호스트로 묶음. 출발지별 검증 미완료 |
 
 6번은 웹 로그를 쓰는 단일 소스 경보입니다. 로그인 요청에 대한 경보는 확인했으며, 실제 침해 여부를 판단할 때는 응답과 다른 로그를 함께 봤습니다. 관리 단말의 정상 접속 1건과 실습 요청을 구분한 기록이 있습니다.
+
+### SPL 원문
+
+#### 1. 로그인 요청과 Snort 경보
+
+```spl
+index=idx_web "wp-login.php"
+| eval source="Apache"
+| append [search index=pfsense "1000002" | eval source="Snort"]
+| stats count by source
+```
+
+#### 2. SQL 인젝션 관련 경보 집계
+
+```spl
+index=pfsense ("SQL" OR "1000004")
+| eval layer=case(
+    like(_raw,"%1000004%"), "Snort/커스텀",
+    like(_raw,"%ET WEB_SERVER%"), "Snort/ET",
+    true(), "Snort/기타")
+| stats count by layer
+```
+
+#### 3. 웹 요청 시퀀스
+
+```spl
+index=idx_web "cmd="
+| stats count by source
+```
+
+#### 4. Snort 시간축
+
+```spl
+index=pfsense ("1000001" OR "1000002" OR "1000004" OR "1000006")
+| eval phase=case(
+    like(_raw,"%1000001%"),"1_WPScan",
+    like(_raw,"%1000002%"),"2_BruteForce",
+    like(_raw,"%1000004%"),"3_SQLi",
+    like(_raw,"%1000006%"),"4_Webshell")
+| timechart span=5m count by phase
+```
+
+#### 다중 소스 시간축
+
+```spl
+index=pfsense ("1000002" OR "1000004" OR "1000006")
+| eval phase=case(
+    like(_raw,"%1000002%"),"3_BruteForce",
+    like(_raw,"%1000004%"),"2_SQLi",
+    like(_raw,"%1000006%"),"4_Webshell")
+| append [search index=idx_web "cmd=" | eval phase="5_InternalRecon"]
+| append [search index=idx_db | eval phase="6_DB_Access"]
+| append [search index=pfsense "10.0.10.80" "10.50.50.30" "filterlog" | eval phase="7_Exfil_Attempt"]
+| timechart span=5m count by phase
+```
+
+#### 5. DB 활동 조회
+
+```spl
+index=idx_db (sourcetype="mysql:slow" OR sourcetype="mysql:error")
+| eval is_external=if(match(host,"10\.0\.10\."), "DMZ(비정상)", "정상")
+| stats count by host, is_external, user
+| where is_external="DMZ(비정상)"
+```
+
+#### 건수 조회
+
+```spl
+index=idx_db host=mysql
+```
+
+#### 6. 반복 로그인 요청 경보
+
+```spl
+index=idx_web sourcetype="apache:access" uri="/wp-login.php" method="POST"
+| bucket _time span=1m
+| stats count by _time, clientip
+| where count >= 5
+```
+
+#### 7. 출발지별 위험 점수
+
+```spl
+index=pfsense ("1000001" OR "1000002" OR "1000004" OR "1000006")
+| eval score=case(
+    like(_raw,"%1000001%"), 1,
+    like(_raw,"%1000002%"), 3,
+    like(_raw,"%1000004%"), 5,
+    like(_raw,"%1000006%"), 8)
+| eval phase=case(
+    like(_raw,"%1000001%"), "WPScan",
+    like(_raw,"%1000002%"), "BruteForce",
+    like(_raw,"%1000004%"), "SQLi",
+    like(_raw,"%1000006%"), "Webshell")
+| stats sum(score) as risk_score, count as event_count, values(phase) as attack_phases by host
+| sort -risk_score
+```
 
 ## ATT&CK 매핑과 관측 지표
 
@@ -108,7 +234,7 @@ Apache에서 로그인 페이지 접근 317건을 확인했고, Snort에서는 �
 
 ## Bee-box 탐지·차단 검증
 
-초기 Bee-box 환경에서 Snort 경보를 Splunk로 가져오고, 출발지와 시각으로 실습 요청을 확인한 뒤 pfSense와 Snort의 차단 정책을 단계별로 적용했습니다. WordPress와 MySQL을 추가한 최종 관제 회차는 [최종 보고서](../report/README.md)에서 다룹니다.
+초기 Bee-box 환경에서 Snort 경보를 Splunk로 가져오고, 출발지와 시각으로 실습 요청을 확인한 뒤 pfSense와 Snort의 차단 정책을 단계별로 적용했습니다.
 
 ### Splunk 분석 준비
 
@@ -165,12 +291,12 @@ index=pfsense 10.50.50.17 snort | timechart span=5m count by signature
 
 먼저 차단 전 WAN 정책과 실습 요청을 확인한 뒤 출발지 차단을 적용했습니다. Snort의 자동 차단은 출발지 차단 정책과 구분해 확인했습니다. DMZ 통신 제한은 마지막에 적용해 웹 서비스에 필요한 통신 범위를 확인했습니다.
 
-[WAN 규칙 적용 전](images/bee-box/fw-1st-before.png) · [WAN 규칙 적용 후](images/bee-box/fw-1st-after.png)
+![WAN 규칙 적용 전](images/bee-box/fw-1st-before.png)
+
+![WAN 규칙 적용 후](images/bee-box/fw-1st-after.png)
 
 ![정책 적용 뒤 ICMP 요청 결과](images/bee-box/fw-1st-verify.png)
 
 ![DMZ 통신 제한 규칙](images/bee-box/fw-2nd-dmz.png)
 
 ![Snort 차단 호스트 목록](images/bee-box/snort-blocked-list.png)
-
-[해킹 시나리오](../scenario/README.md) · [대응 내역](../response/README.md) · [최종 보고서](../report/README.md)

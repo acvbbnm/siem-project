@@ -2,8 +2,6 @@
 
 ESXi에서 실습망, 외부 경계망, DMZ, 내부망, 관리망을 나눴습니다. VyOS는 라우팅을 맡고, pfSense와 Snort는 망 경계에서 통신과 경보를 기록합니다.
 
-[가상 스위치와 VM 배치](#가상-스위치와-vm-배치) · [WordPress·MySQL 구축](#wordpressmysql-환경-구축) · [Splunk 연동](#splunk-연동)
-
 ## 최종 실습망
 
 ![최종 보고서에 기록된 네트워크 구성도](../report/images/final-topology.png)
@@ -43,7 +41,9 @@ VM에 가상 NIC를 추가한 뒤, ESXi 포트 그룹과 게스트 OS의 IP·게
 
 ![ESXi의 가상 머신 네트워크 설정](images/esxi-vm-network.png)
 
-[VyOS 인터페이스와 라우팅 테이블](images/vyos-interfaces.png) · [pfSense WAN 연결 설정](images/pfsense-wan-interface.png)
+![VyOS 인터페이스와 라우팅 테이블](images/vyos-interfaces.png)
+
+![pfSense WAN 연결 설정](images/pfsense-wan-interface.png)
 
 ### 웹과 DB 연동
 
@@ -74,7 +74,120 @@ VM에 가상 NIC를 추가한 뒤, ESXi 포트 그룹과 게스트 OS의 IP·게
 
 수집 확인은 인덱스, 호스트, sourcetype 순으로 했습니다. 구축 시 보관한 인덱스·입력·파싱 설정을 보면 WAF에 별도 인덱스를 할당한 구성이 있습니다. 최종 관제에서 사용한 WAF 기록은 웹 서버가 전달한 `idx_web`에서 확인했습니다. MySQL도 최종 수집분에서는 `syslog`로 들어와, 전용 sourcetype을 전제로 만든 검색을 그대로 쓰면 기록이 빠질 수 있었습니다.
 
-[인덱스 설정](splunk/indexes.conf) · [입력 설정](splunk/inputs.conf) · [파싱 설정](splunk/props.conf)
+#### 인덱스 설정
+
+```ini
+# Splunk 인덱스 설정
+# 배치: Splunk 서버(10.0.100.50)의
+#   /opt/splunk/etc/system/local/indexes.conf
+# 또는 Settings > Indexes 에서 GUI로 생성
+
+# 웹 로그 인덱스 (Apache access/error, WordPress auth)
+[idx_web]
+coldPath = $SPLUNK_DB/idx_web/colddb
+homePath = $SPLUNK_DB/idx_web/db
+thawedPath = $SPLUNK_DB/idx_web/thaweddb
+maxTotalDataSizeMB = 5120
+
+# WAF 로그 인덱스 (ModSecurity)
+[idx_waf]
+coldPath = $SPLUNK_DB/idx_waf/colddb
+homePath = $SPLUNK_DB/idx_waf/db
+thawedPath = $SPLUNK_DB/idx_waf/thaweddb
+maxTotalDataSizeMB = 2048
+
+# DB 로그 인덱스 (MySQL slow query, error)
+[idx_db]
+coldPath = $SPLUNK_DB/idx_db/colddb
+homePath = $SPLUNK_DB/idx_db/db
+thawedPath = $SPLUNK_DB/idx_db/thaweddb
+maxTotalDataSizeMB = 2048
+```
+
+#### 입력 설정
+
+```ini
+# Splunk Universal Forwarder 입력 설정
+# 배치: /opt/splunkforwarder/etc/system/local/inputs.conf
+#
+# WordPress 서버 (10.0.10.80)용 설정
+# MySQL 서버는 04-splunk-forwarder.sh에서 자동 설정
+
+[default]
+host = wordpress
+
+# Apache Access Log
+[monitor:///var/log/apache2/access.log]
+disabled = false
+index = idx_web
+sourcetype = apache:access
+
+# Apache Error Log
+[monitor:///var/log/apache2/error.log]
+disabled = false
+index = idx_web
+sourcetype = apache:error
+
+# ModSecurity Audit Log
+[monitor:///var/log/modsecurity/audit.log]
+disabled = false
+index = idx_waf
+sourcetype = modsecurity
+
+# WordPress Debug Log (인증 이벤트 포함)
+[monitor:///var/www/html/wp-content/debug.log]
+disabled = false
+index = idx_web
+sourcetype = wp:auth
+```
+
+#### 파싱 설정
+
+```ini
+# Splunk 필드 추출 설정
+# 배치: Splunk 서버(10.0.100.50)의
+#   /opt/splunk/etc/system/local/props.conf
+
+# Apache Access Log 필드 추출
+[apache:access]
+TIME_FORMAT = %d/%b/%Y:%H:%M:%S %z
+SHOULD_LINEMERGE = false
+EXTRACT-apache = ^(?P<src_ip>\d+\.\d+\.\d+\.\d+)\s+-\s+(?P<user>\S+)\s+\[(?P<timestamp>[^\]]+)\]\s+"(?P<method>\w+)\s+(?P<uri>\S+)\s+\S+"\s+(?P<status>\d+)\s+(?P<bytes>\d+)\s+"(?P<referer>[^"]+)"\s+"(?P<user_agent>[^"]+)"
+
+# Apache Error Log
+[apache:error]
+TIME_FORMAT = %a %b %d %H:%M:%S.%f %Y
+SHOULD_LINEMERGE = false
+
+# ModSecurity Audit Log
+[modsecurity]
+TIME_FORMAT = %d/%b/%Y:%H:%M:%S %z
+SHOULD_LINEMERGE = true
+BREAK_ONLY_BEFORE = ^--[a-f0-9]+-A--
+MAX_TIMESTAMP_LOOKAHEAD = 40
+EXTRACT-modsec_ruleid = id\s+"(?P<rule_id>\d+)"
+EXTRACT-modsec_msg = msg\s+"(?P<rule_msg>[^"]+)"
+EXTRACT-modsec_severity = severity\s+"(?P<severity>\w+)"
+EXTRACT-modsec_uri = (?:GET|POST|PUT|DELETE)\s+(?P<request_uri>\S+)
+
+# WordPress Auth Log
+[wp:auth]
+TIME_FORMAT = %Y-%m-%dT%H:%M:%S
+SHOULD_LINEMERGE = false
+
+# MySQL Slow Query Log
+[mysql:slowquery]
+TIME_FORMAT = %Y-%m-%dT%H:%M:%S.%6N%z
+SHOULD_LINEMERGE = true
+BREAK_ONLY_BEFORE = ^#\s+Time:
+EXTRACT-mysql_query_time = Query_time:\s+(?P<query_time>[\d.]+)
+EXTRACT-mysql_user = User@Host:\s+(?P<db_user>\S+)\[
+
+# MySQL Error Log
+[mysql:error]
+TIME_FORMAT = %Y-%m-%dT%H:%M:%S.%6N%z
+SHOULD_LINEMERGE = false
+```
 
 ### 구축 뒤 확인한 항목
 
@@ -82,5 +195,3 @@ VM에 가상 NIC를 추가한 뒤, ESXi 포트 그룹과 게스트 OS의 IP·게
 - WordPress에서 MySQL 연결 및 DB 로그 수집
 - 관리 단말의 정상 접속과 웹·인증 로그
 - ModSecurity 이벤트가 들어오는 실제 Splunk 인덱스
-
-[최종 보고서](../report/README.md)
