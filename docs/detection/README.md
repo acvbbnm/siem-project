@@ -2,7 +2,7 @@
 
 Snort는 망 경계에서, ModSecurity는 웹 서버에서 관측했습니다. Splunk에서 같은 시각대의 출발지와 웹 요청을 대조해 경보의 영향 범위를 확인했습니다.
 
-![Splunk SOC_Monitor 대시보드](../report/images/soc-dashboard.png)
+![Splunk SOC_Monitor 대시보드](../../report/images/soc-dashboard.png)
 
 | 항목 | 확인한 결과 |
 | --- | --- |
@@ -11,11 +11,11 @@ Snort는 망 경계에서, ModSecurity는 웹 서버에서 관측했습니다. S
 | 관제 화면 | 전체 이벤트, 출발지별 경보, WAF, 인증, DB 기록을 한 화면에서 비교 |
 | 탐지 범위 | 7단계 중 5단계 공격 시도 탐지, DB 접근 1단계 부분 탐지, 외부 전송 실패 1단계 |
 
-스캐너는 Snort와 웹 로그에서 관찰했지만 Splunk의 해당 저장 경보는 발생 여부를 확인하지 못했습니다. 원인은 미확정입니다. SQL 인젝션 경보는 요청 시도를 보여줬고, 침해 성공 여부는 응답과 다른 로그를 따로 확인했습니다.
+정찰은 Snort와 웹 로그에서 확인했습니다. 관제 일지에 기록된 Splunk 경보 8건에는 Scanner Detection이 없습니다. SQL 인젝션은 요청 경보와 응답을 따로 확인했습니다.
 
-## 설계 당시 룰과 pfSense 설정
+## pfSense 커스텀 룰
 
-`local.rules`는 설계 당시 저장한 파일입니다. 아래 SID는 2026년 11월 20일 복구한 pfSense의 **WAN → custom.rules** 정의에서 확인했습니다.
+pfSense WAN 커스텀 룰 9개는 최종 보고서 PDF 부록에 있습니다. [설계 당시 룰](local.rules)과 SID 배정이 다릅니다.
 
 | pfSense SID | 룰 | 설계 파일의 SID |
 | --- | --- | --- |
@@ -42,4 +42,4 @@ Snort는 망 경계에서, ModSecurity는 웹 서버에서 관측했습니다. S
 
 6번은 웹 로그를 쓰는 단일 소스 경보입니다. 로그인 요청에 대한 경보는 확인했으며, 실제 침해 여부를 판단할 때는 응답과 다른 로그를 함께 봤습니다. 관리 단말의 정상 접속 1건과 실습 요청을 구분한 기록이 있습니다.
 
-[ATT&CK 매핑과 관측 지표](indicators.md) · [모의 사고 시나리오](../scenario/README.md) · [최종 보고서](../report/README.md)
+[ATT&CK 매핑과 관측 지표](indicators.md) · [모의 사고 시나리오](../scenario/README.md) · [최종 보고서](../../report/README.md)

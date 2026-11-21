@@ -1,0 +1,26 @@
+# WordPress 정찰
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL WordPress wpscan detected"; flow:to_server,established; content:"WPScan"; http_header; sid:1000001; rev:1;)
+
+# wp-login 브루트포스
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL WordPress login brute-force attempt"; flow:to_server,established; content:"POST"; http_method; content:"/wp-login.php"; http_uri; detection_filter:track by_src,count 5,seconds 60; sid:1000002; rev:1;)
+
+# xmlrpc 브루트포스
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL WordPress xmlrpc brute-force"; flow:to_server,established; content:"POST"; http_method; content:"/xmlrpc.php"; http_uri; content:"methodCall"; http_client_body; sid:1000003; rev:1;)
+
+# SQL Injection
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL SQL Injection attempt UNION SELECT"; flow:to_server,established; content:"UNION"; nocase; http_uri; content:"SELECT"; nocase; http_uri; sid:1000004; rev:1;)
+
+# File Manager CVE-2020-25213
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL WP File Manager CVE-2020-25213 exploit"; flow:to_server,established; content:"POST"; http_method; content:"connector.minimal.php"; http_uri; sid:1000005; rev:1;)
+
+# 웹쉘 접근
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"LOCAL Webshell access attempt"; flow:to_server,established; content:".php"; http_uri; content:"cmd"; http_uri; sid:1000006; rev:1;)
+
+# 내부 네트워크 스캔 (DMZ→inner)
+alert tcp 10.0.10.0/24 any -> 10.0.100.0/24 any (msg:"LOCAL DMZ to Internal network scan"; flags:S; threshold:type threshold,track by_src,count 5,seconds 60; sid:1000007; rev:1;)
+
+# DB 대량 조회 (큰 응답)
+alert tcp 10.0.100.0/24 3306 -> 10.0.10.0/24 any (msg:"LOCAL Large MySQL response to DMZ"; flow:from_server,established; dsize:>10000; sid:1000008; rev:1;)
+
+# 외부 유출 시도 (DMZ→외부)
+alert tcp 10.0.10.0/24 any -> $EXTERNAL_NET any (msg:"LOCAL DMZ outbound data exfiltration attempt"; flow:to_server,established; dsize:>5000; sid:1000009; rev:1;)
