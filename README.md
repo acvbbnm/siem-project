@@ -6,9 +6,8 @@
 
 ![SIEM 실습망 네트워크 구성도](report/images/final-topology.png)
 
-- **보안 장비** · pfSense 방화벽 · Snort · ModSecurity WAF
-- **방화벽 정책과 탐지 룰** · Firewall · IPS · WAF
-- **로그 수집** · 방화벽·Snort·웹·WAF·DB 로그를 Splunk에 연동
+- **보안 장비** · Firewall(pfSense) · IPS(Snort) · WAF(ModSecurity)
+- **로그 수집** · 보안 장비와 웹·DB 서버의 로그를 Splunk에 연동
 
 [환경 구축 과정](environment/README.md) · [가상 스위치와 VM 배치](environment/README.md#가상-스위치와-vm-배치)
 
