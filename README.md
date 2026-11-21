@@ -40,6 +40,4 @@ Splunk에서 반복 로그인과 웹셸 경보를 확인하고, 같은 시간대
 
 [사건 일지와 차단 결과](response/README.md)
 
-## 최종 보고서
-
-[PDF](report/siem-report.pdf) · [Word](report/siem-report.docx)
+## [최종 보고서 PDF](report/siem-report.pdf)
