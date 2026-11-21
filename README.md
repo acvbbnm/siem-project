@@ -30,6 +30,8 @@
 
 Splunk에서 반복 로그인과 웹셸 경보를 확인하고, 같은 시간대의 Snort·ModSecurity 기록을 대조했습니다.
 
+![Splunk SOC_Monitor 관제 대시보드](report/images/soc-dashboard.png)
+
 [탐지 룰, 검증 결과와 Splunk 경보](detection/README.md)
 
 ## 대응 내역
