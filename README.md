@@ -1,4 +1,4 @@
-# SIEM 공격 탐지·대응 실습 · [최종 보고서 PDF](report/siem-report.pdf)
+# SIEM 공격 탐지·대응 실습 <a href="report/siem-report.pdf"><img align="right" src="report/images/report-link.png" width="176" alt="최종 보고서 PDF"></a>
 
 ## 환경 구축
 
