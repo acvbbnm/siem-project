@@ -2,6 +2,8 @@
 
 ## Bee-box에서 확인한 유형
 
+![Bee-box 기반 초기 가상망 구성도](../report/images/network.png)
+
 정찰에서는 열린 포트, 서비스 버전, 웹 설정과 노출 경로를 기록했습니다. 웹 실습에서는 요청 URI, 요청 본문, 응답 중 어디에 흔적이 남는지에 따라 Snort의 관측 결과가 달랐습니다.
 
 | 유형 | 확인한 내용 | Snort 기록 |
@@ -13,7 +15,7 @@
 | 경로 탐색 | 요청 및 응답 방향 기록 확인 | 두 방향에서 각 1건 |
 | 반복 인증 | 개별 HTTP 요청과 출발지별 요청 빈도 비교 | 0건 |
 
-[초기 Bee-box 탐지·차단 캡처](../environment/README.md#초기-bee-box-환경)
+[Bee-box 탐지·차단 검증](../detection/README.md#bee-box-탐지차단-검증)
 
 ## WordPress·MySQL 시나리오
 

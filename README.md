@@ -10,7 +10,7 @@
 
 ![pfSense·Snort, WordPress·ModSecurity, MySQL에서 Splunk로 보내는 로그](report/images/log-collection.png)
 
-[환경 구축 과정](environment/README.md) · [가상 스위치와 VM 배치](environment/README.md#가상-스위치와-vm-배치)
+[환경 구축 과정](environment/README.md)
 
 ## 해킹 시나리오
 
