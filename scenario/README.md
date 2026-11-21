@@ -13,7 +13,7 @@
 | 경로 탐색 | 요청 및 응답 방향 기록 확인 | 두 방향에서 각 1건 |
 | 반복 인증 | 개별 HTTP 요청과 출발지별 요청 빈도 비교 | 0건 |
 
-[초기 Bee-box 탐지·차단 캡처](../environment/bee-box/README.md)
+[초기 Bee-box 탐지·차단 캡처](../environment/README.md#초기-bee-box-환경)
 
 ## WordPress·MySQL 시나리오
 
