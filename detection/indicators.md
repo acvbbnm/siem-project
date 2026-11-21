@@ -18,4 +18,4 @@
 - 웹 요청의 User-Agent. `WPScan`과 `Hydra`가 남아 있었습니다. 같은 시각대의 요청량과 출발지를 함께 대조했습니다.
 - 웹셸 관련 요청. 웹 기록과 실행 결과가 포함된 응답을 함께 확인했습니다.
 
-[관제와 대응](../response/README.md) · [최종 보고서](../../report/README.md)
+[관제와 대응](../response/README.md) · [최종 보고서](../report/README.md)

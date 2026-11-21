@@ -4,7 +4,7 @@ ESXi에서 실습망, 외부 경계망, DMZ, 내부망, 관리망을 나눴습�
 
 ## 최종 실습망
 
-![최종 보고서에 기록된 네트워크 구성도](../../report/images/final-topology.png)
+![최종 보고서에 기록된 네트워크 구성도](../report/images/final-topology.png)
 
 복구한 ESXi에는 VM 9대가 등록돼 있습니다. VM 목록에서 `ubuntu`의 호스트 이름이 `splunk`로 표시됩니다. ESXi 관리용 `Management Network`는 `vSwitch0`에 있고, 실습 관리 단말의 `mng-net`은 별도 vSwitch에 연결됩니다.
 
@@ -20,17 +20,19 @@ ESXi에서 실습망, 외부 경계망, DMZ, 내부망, 관리망을 나눴습�
 | `inner-net` | pfSense, Splunk, MySQL | DB 서비스와 로그 수집 서버를 배치한 내부망 |
 | `mng-net` | pfSense, mng-mint | 관제 화면을 확인하고 정상 접속을 비교한 관리망 |
 
-![복구한 ESXi의 VM 목록과 Splunk 호스트 이름](../../report/images/recovered-esxi-vms.png)
+![복구한 ESXi의 VM 목록과 Splunk 호스트 이름](../report/images/recovered-esxi-vms.png)
 
-![복구한 ESXi의 포트 그룹과 vSwitch 연결](../../report/images/recovered-esxi-port-groups.png)
+![복구한 ESXi의 포트 그룹과 vSwitch 연결](../report/images/recovered-esxi-port-groups.png)
 
 ## 초기 Bee-box 환경
 
-![Bee-box 기반 초기 가상망 구성도](../../report/images/network.png)
+![Bee-box 기반 초기 가상망 구성도](../report/images/network.png)
 
 Bee-box에서 탐지와 차단을 먼저 확인했습니다. [Bee-box 탐지와 차단 검증](bee-box/README.md)에 Splunk 분석 준비, Snort 경보 확인, 로그 분석과 방화벽 정책별 기록을 남겼습니다.
 
 ## 로그를 확인한 위치
+
+![pfSense·Snort, WordPress·WAF, MySQL에서 Splunk로 보내는 로그](../report/images/log-collection.png)
 
 | 구역 | 구성 | 관측 내용 |
 | --- | --- | --- |
@@ -48,4 +50,4 @@ Bee-box에서 탐지와 차단을 먼저 확인했습니다. [Bee-box 탐지와 
 
 WAF용 `idx_waf`도 설정했습니다. 관제에 사용한 ModSecurity 기록은 `idx_web`에서 확인했습니다.
 
-[최종 보고서](../../report/README.md)
+[최종 보고서](../report/README.md)

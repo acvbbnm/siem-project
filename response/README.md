@@ -18,10 +18,10 @@
 | 19:24~19:35 | SQL 인젝션 시도, 웹셸 실행, DB 정보 노출 근거 확인 |
 | 19:40 이후 | pfSense 정책 적용 후 동일 출발지의 HTTP 재접속 실패 확인 |
 
-![pfSense WAN의 적용 후 차단 규칙](../../report/images/wan-policy.png)
+![pfSense WAN의 적용 후 차단 규칙](../report/images/wan-policy.png)
 
 초기 실습에서는 DMZ 통신 제한과 Snort 차단 모드도 별도로 확인했습니다. 최종 관제 회차의 HTTP 재접속 타임아웃은 pfSense 정책 조치의 검증 결과로 기록했습니다.
 
 웹셸 제거, 자격증명 교체와 DB 감사 로그 수집은 후속 조치로 남겼습니다. 별도로 실패한 외부 전송 시도의 원인은 확인되지 않았습니다.
 
-[최종 보고서](../../report/README.md)
+[최종 보고서](../report/README.md)

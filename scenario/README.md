@@ -14,8 +14,8 @@ WordPress·MySQL 환경에서는 외부 정찰에서 데이터 접근까지 이�
 | 6 | DB 접근 | 웹의 응답으로 정보 노출 확인. DB 전용 경보 없이 부분 탐지 |
 | 7 | 외부 전송 시도 | 전송 실패 확인. 원인 미확정 |
 
-![Splunk 시간대별 이벤트 분포](../../report/images/scenario-timeline.png)
+![Splunk 시간대별 이벤트 분포](../report/images/scenario-timeline.png)
 
 이 표는 시나리오의 단계 순서입니다. 실제 관제 화면에서 경보가 뜬 시각은 [대응 기록](../response/README.md)에 있습니다.
 
-[최종 보고서](../../report/README.md)
+[최종 보고서](../report/README.md)

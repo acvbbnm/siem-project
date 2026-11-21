@@ -8,4 +8,4 @@
 
 ![최종 보고서의 네트워크 구성도](images/final-topology.png)
 
-[가상 스위치와 VM 배치](../docs/environment/README.md) · [탐지 설계](../docs/detection/README.md) · [관제·대응 기록](../docs/response/README.md)
+[가상 스위치와 VM 배치](../environment/README.md) · [탐지 설계](../detection/README.md) · [관제·대응 기록](../response/README.md)

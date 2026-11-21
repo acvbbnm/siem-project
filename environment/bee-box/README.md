@@ -1,6 +1,6 @@
 # Bee-box 탐지와 차단 검증
 
-초기 Bee-box 환경에서 Snort 경보를 Splunk로 가져오고, 출발지와 시각으로 실습 요청을 확인한 뒤 pfSense와 Snort의 차단 정책을 단계별로 적용했습니다. WordPress와 MySQL을 추가한 최종 관제 회차는 [최종 보고서](../../../report/README.md)에서 다룹니다.
+초기 Bee-box 환경에서 Snort 경보를 Splunk로 가져오고, 출발지와 시각으로 실습 요청을 확인한 뒤 pfSense와 Snort의 차단 정책을 단계별로 적용했습니다. WordPress와 MySQL을 추가한 최종 관제 회차는 [최종 보고서](../../report/README.md)에서 다룹니다.
 
 ## Splunk 분석 준비
 
@@ -36,4 +36,4 @@ Splunk에서 Snort 경보를 출발지별로 집계하고, 요청이 집중된 �
 
 ![Snort 차단 호스트 목록](images/snort-blocked-list.png)
 
-[환경 구축](../README.md) · [최종 관제 보고서](../../../report/README.md)
+[환경 구축](../README.md) · [최종 관제 보고서](../../report/README.md)

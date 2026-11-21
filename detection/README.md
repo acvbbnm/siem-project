@@ -2,7 +2,7 @@
 
 Snort는 망 경계에서, ModSecurity는 웹 서버에서 관측했습니다. Splunk에서 같은 시각대의 출발지와 웹 요청을 대조해 경보의 영향 범위를 확인했습니다.
 
-![Splunk SOC_Monitor 대시보드](../../report/images/soc-dashboard.png)
+![Splunk SOC_Monitor 대시보드](../report/images/soc-dashboard.png)
 
 | 항목 | 확인한 결과 |
 | --- | --- |
@@ -42,4 +42,4 @@ pfSense WAN 커스텀 룰 9개는 최종 보고서 PDF 부록에 있습니다. [
 
 6번은 웹 로그를 쓰는 단일 소스 경보입니다. 로그인 요청에 대한 경보는 확인했으며, 실제 침해 여부를 판단할 때는 응답과 다른 로그를 함께 봤습니다. 관리 단말의 정상 접속 1건과 실습 요청을 구분한 기록이 있습니다.
 
-[ATT&CK 매핑과 관측 지표](indicators.md) · [모의 사고 시나리오](../scenario/README.md) · [최종 보고서](../../report/README.md)
+[ATT&CK 매핑과 관측 지표](indicators.md) · [모의 사고 시나리오](../scenario/README.md) · [최종 보고서](../report/README.md)
