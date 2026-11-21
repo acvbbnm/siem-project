@@ -1,6 +1,6 @@
 # SIEM 공격 탐지·대응 실습
 
-ESXi에 웹·DB·관리망을 분리해 가상 기업망을 만들고, 네트워크·웹·DB 로그를 Splunk에 모았습니다. 같은 시각대의 방화벽·IPS와 서버 기록을 대조해 모의 사고가 어디까지 이어졌는지 조사했습니다.
+ESXi에 기업 서비스의 기본 3계층(웹·애플리케이션·DB)을 구성했습니다. Apache와 WordPress는 DMZ의 같은 VM에 두고, MySQL은 내부망에 배치했습니다. pfSense 방화벽, Snort, ModSecurity WAF를 연동하고 장비별 정책과 탐지 룰을 설정했습니다. 보안 장비와 서버의 로그는 Splunk에 모아 한곳에서 관제했습니다.
 
 개인 프로젝트
 
@@ -18,12 +18,10 @@ ESXi에 웹·DB·관리망을 분리해 가상 기업망을 만들고, 네트워
 
 **[SIEM 구축 및 탐지 대응 보고서 PDF](report/siem-report.pdf)** · [Word](report/siem-report.docx)
 
-웹 요청과 실행 응답을 대조해 DB 정보가 노출된 범위를 확인했습니다. pfSense 정책을 적용한 뒤 같은 출발지에서 다시 접속해 차단 결과를 확인했습니다.
+계층별 탐지 결과, 로그로 확인한 침해 범위, 방화벽 차단 결과와 재발 방지 방안을 담았습니다.
 
 ## 실습 기록
 
-| 작업 | 내용 |
-| --- | --- |
-| [환경 구축](docs/environment/README.md) | ESXi 가상망, 로그 수집과 초기 Bee-box 검증 |
-| [탐지 설계](docs/detection/README.md) | Snort·ModSecurity 탐지와 Splunk 검색 및 경보 |
-| [관제·대응](docs/response/README.md) | 사건 일지와 pfSense 정책 적용 전후의 관측 결과 |
+1. **[환경 구축](docs/environment/README.md)** — ESXi에서 망을 분리하고 경계에 pfSense·Snort, 웹 서버에 ModSecurity를 배치했습니다. 방화벽 정책과 탐지 룰을 설정한 뒤 Splunk에 로그를 연동했습니다.
+2. **[공격 시나리오](docs/scenario/README.md)와 [계층별 탐지](docs/detection/README.md)** — 정찰부터 웹을 거쳐 DB에 접근하는 흐름을 실습했습니다. Snort의 네트워크 경보, ModSecurity의 HTTP 요청 탐지, 웹·DB 로그를 비교해 각 계층에서 무엇을 확인할 수 있는지 기록했습니다.
+3. **[관제·대응](docs/response/README.md)** — Splunk 경보와 원본 로그를 대조해 사고 흐름을 재구성했습니다. pfSense에서 차단 정책을 적용한 뒤 재접속으로 결과를 확인하고, 탐지 공백과 재발 방지 방안을 보고서에 정리했습니다.
